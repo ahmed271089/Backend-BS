@@ -1,0 +1,284 @@
+{
+  "info": {
+    "name": "Backend API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000/api"
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"phone\": \"+1234567890\",\n  \"password\": \"password123\",\n  \"name\": \"John Doe\"\n}"
+            },
+            "url": {"raw": "{{baseUrl}}/auth/register", "host": ["{{baseUrl}}"], "path": ["auth", "register"]}
+          }
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {"raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"]}
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"your-refresh-token-here\"\n}"
+            },
+            "url": {"raw": "{{baseUrl}}/auth/refresh", "host": ["{{baseUrl}}"], "path": ["auth", "refresh"]}
+          }
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "Get Current User (Me)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {"raw": "{{baseUrl}}/users/me", "host": ["{{baseUrl}}"], "path": ["users", "me"]}
+          }
+        },
+        {
+          "name": "Get Leaderboard",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {"raw": "{{baseUrl}}/users/leaderboard", "host": ["{{baseUrl}}"], "path": ["users", "leaderboard"]}
+          }
+        },
+        {
+          "name": "Get User by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {"raw": "{{baseUrl}}/users/:id", "host": ["{{baseUrl}}"], "path": ["users", ":id"], "variable": [{"key": "id", "value": ""}]}
+          }
+        },
+        {
+          "name": "Update Current User",
+          "request": {
+            "method": "PATCH",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"New Name\",\n  \"bio\": \"New Bio\",\n  \"avatarUrl\": \"https://example.com/avatar.jpg\"\n}"
+            },
+            "url": {"raw": "{{baseUrl}}/users/me", "host": ["{{baseUrl}}"], "path": ["users", "me"]}
+          }
+        },
+        {
+          "name": "Suspend User",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {"raw": "{{baseUrl}}/users/:id/suspend", "host": ["{{baseUrl}}"], "path": ["users", ":id", "suspend"], "variable": [{"key": "id", "value": ""}]}
+          }
+        },
+        {
+          "name": "Ban User",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {"raw": "{{baseUrl}}/users/:id/ban", "host": ["{{baseUrl}}"], "path": ["users", ":id", "ban"], "variable": [{"key": "id", "value": ""}]}
+          }
+        },
+        {
+          "name": "Verify User",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {"raw": "{{baseUrl}}/users/:id/verify", "host": ["{{baseUrl}}"], "path": ["users", ":id", "verify"], "variable": [{"key": "id", "value": ""}]}
+          }
+        }
+      ]
+    },
+    {
+      "name": "Categories",
+      "item": [
+        {
+          "name": "Get Categories",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {"raw": "{{baseUrl}}/categories", "host": ["{{baseUrl}}"], "path": ["categories"]}
+          }
+        },
+        {
+          "name": "Create Category",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Technology\",\n  \"slug\": \"technology\",\n  \"icon\": \"laptop\"\n}"
+            },
+            "url": {"raw": "{{baseUrl}}/categories", "host": ["{{baseUrl}}"], "path": ["categories"]}
+          }
+        },
+        {
+          "name": "Delete Category",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {"raw": "{{baseUrl}}/categories/:id", "host": ["{{baseUrl}}"], "path": ["categories", ":id"], "variable": [{"key": "id", "value": ""}]}
+          }
+        }
+      ]
+    },
+    {
+      "name": "Posts",
+      "item": [
+        {
+          "name": "Create Post",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"PROBLEM\",\n  \"categoryId\": \"category-uuid-here\",\n  \"title\": \"Need help with NestJS\",\n  \"description\": \"I am getting a weird error when injecting a service...\",\n  \"attachments\": [\n    {\n      \"type\": \"PHOTO\",\n      \"url\": \"https://example.com/screenshot.jpg\"\n    }\n  ]\n}"
+            },
+            "url": {"raw": "{{baseUrl}}/posts", "host": ["{{baseUrl}}"], "path": ["posts"]}
+          }
+        },
+        {
+          "name": "Get Posts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {"raw": "{{baseUrl}}/posts", "host": ["{{baseUrl}}"], "path": ["posts"]}
+          }
+        },
+        {
+          "name": "Search Posts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {"raw": "{{baseUrl}}/posts/search?q=nestjs", "host": ["{{baseUrl}}"], "path": ["posts", "search"], "query": [{"key": "q", "value": "nestjs"}]}
+          }
+        },
+        {
+          "name": "Get Post by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {"raw": "{{baseUrl}}/posts/:id", "host": ["{{baseUrl}}"], "path": ["posts", ":id"], "variable": [{"key": "id", "value": ""}]}
+          }
+        },
+        {
+          "name": "Mark Post as Solved",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {"raw": "{{baseUrl}}/posts/:id/solve", "host": ["{{baseUrl}}"], "path": ["posts", ":id", "solve"], "variable": [{"key": "id", "value": ""}]}
+          }
+        },
+        {
+          "name": "Like Post",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {"raw": "{{baseUrl}}/posts/:id/like", "host": ["{{baseUrl}}"], "path": ["posts", ":id", "like"], "variable": [{"key": "id", "value": ""}]}
+          }
+        },
+        {
+          "name": "Favorite Post",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {"raw": "{{baseUrl}}/posts/:id/favorite", "host": ["{{baseUrl}}"], "path": ["posts", ":id", "favorite"], "variable": [{"key": "id", "value": ""}]}
+          }
+        }
+      ]
+    },
+    {
+      "name": "Comments",
+      "item": [
+        {
+          "name": "Get Comments",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {"raw": "{{baseUrl}}/posts/:postId/comments", "host": ["{{baseUrl}}"], "path": ["posts", ":postId", "comments"], "variable": [{"key": "postId", "value": ""}]}
+          }
+        },
+        {
+          "name": "Create Comment",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"I know how to solve this!\",\n  \"parentId\": \"optional-parent-comment-id\"\n}"
+            },
+            "url": {"raw": "{{baseUrl}}/posts/:postId/comments", "host": ["{{baseUrl}}"], "path": ["posts", ":postId", "comments"], "variable": [{"key": "postId", "value": ""}]}
+          }
+        },
+        {
+          "name": "Like Comment",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {"raw": "{{baseUrl}}/posts/:postId/comments/:commentId/like", "host": ["{{baseUrl}}"], "path": ["posts", ":postId", "comments", ":commentId", "like"], "variable": [{"key": "postId", "value": ""}, {"key": "commentId", "value": ""}]}
+          }
+        },
+        {
+          "name": "Delete Comment",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {"raw": "{{baseUrl}}/posts/:postId/comments/:commentId", "host": ["{{baseUrl}}"], "path": ["posts", ":postId", "comments", ":commentId"], "variable": [{"key": "postId", "value": ""}, {"key": "commentId", "value": ""}]}
+          }
+        }
+      ]
+    },
+    {
+      "name": "Rewards",
+      "item": [
+        {
+          "name": "Reward Post",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"commentId\": \"comment-uuid-here\",\n  \"points\": 10\n}"
+            },
+            "url": {"raw": "{{baseUrl}}/posts/:postId/reward", "host": ["{{baseUrl}}"], "path": ["posts", ":postId", "reward"], "variable": [{"key": "postId", "value": ""}]}
+          }
+        },
+        {
+          "name": "Get User Rewards",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {"raw": "{{baseUrl}}/users/:userId/rewards", "host": ["{{baseUrl}}"], "path": ["users", ":userId", "rewards"], "variable": [{"key": "userId", "value": ""}]}
+          }
+        }
+      ]
+    }
+  ]
+}
