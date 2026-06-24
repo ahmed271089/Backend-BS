@@ -6,7 +6,7 @@ import { CreatePostDto } from './dto/post.dto';
 
 @Controller('posts')
 export class PostsController {
-  constructor(private postsService: PostsService) {}
+  constructor(private postsService: PostsService) { }
 
   @Post()
   @UseGuards(JwtAuthGuard)

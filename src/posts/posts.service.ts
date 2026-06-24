@@ -12,7 +12,7 @@ export class PostsService {
     private prisma: PrismaService,
     private usersService: UsersService,
     private agentClient: AgentClientService,
-  ) {}
+  ) { }
 
   async create(authorId: string, dto: CreatePostDto) {
     const post = await this.prisma.post.create({
