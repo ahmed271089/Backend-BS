@@ -20,6 +20,11 @@ export class UsersController {
     return this.usersService.getLeaderboard(categoryId);
   }
 
+  @Get('search')
+  search(@Query('q') q: string) {
+    return this.usersService.search(q ?? '');
+  }
+
   @Get(':id')
   getById(@Param('id') id: string) {
     return this.usersService.findById(id);

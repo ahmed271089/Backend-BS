@@ -1,4 +1,4 @@
-import { ArrayMinSize, IsArray, IsEnum, IsIn, IsString, MinLength } from 'class-validator';
+import { ArrayMinSize, IsArray, IsEnum, IsIn, IsOptional, IsString, IsUUID, MinLength } from 'class-validator';
 
 export class AttachmentInputDto {
   @IsIn(['PHOTO', 'VIDEO'])
@@ -23,9 +23,22 @@ export class CreatePostDto {
   @MinLength(10)
   description: string;
 
+  @IsOptional()
   @IsArray()
-  @ArrayMinSize(1)
-  attachments: AttachmentInputDto[];
+  attachments?: AttachmentInputDto[];
+}
+
+export class PreviewAnalysisDto {
+  @IsString()
+  categoryId: string;
+
+  @IsString()
+  @MinLength(3)
+  title: string;
+
+  @IsString()
+  @MinLength(10)
+  description: string;
 }
 
 export class CreateCommentDto {
@@ -33,5 +46,7 @@ export class CreateCommentDto {
   @MinLength(1)
   content: string;
 
+  @IsOptional()
+  @IsUUID()
   parentId?: string;
 }

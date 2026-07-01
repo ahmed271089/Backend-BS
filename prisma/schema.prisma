@@ -1,3 +1,81 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ----------------------- ENUMS -----------------------
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  BANNED
+}
+
+enum AuthProvider {
+  EMAIL
+  PHONE
+  GOOGLE
+  APPLE
+  FACEBOOK
+}
+
+enum PostType {
+  PROBLEM
+  SOLUTION
+}
+
+enum PostStatus {
+  OPEN
+  SOLVED
+  CLOSED
+}
+
+enum AttachmentType {
+  PHOTO
+  VIDEO
+}
+
+enum TargetType {
+  POST
+  COMMENT
+  MESSAGE
+  USER
+}
+
+enum ReportStatus {
+  PENDING
+  REVIEWED
+  DISMISSED
+  ACTION_TAKEN
+}
+
+enum FriendRequestStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+enum NotificationType {
+  COMMENT
+  MESSAGE
+  SOLVED
+  REWARD
+  FRIEND_REQUEST
+  REPORT_UPDATE
+  SYSTEM
+}
+
+// ----------------------- USER -----------------------
+
 model User {
   id              String       @id @default(uuid())
   email           String?      @unique
@@ -12,9 +90,6 @@ model User {
   status          UserStatus   @default(ACTIVE)
   reputationPoints Int         @default(0)
   isVerified      Boolean      @default(false)
-
-  resetTokenHash       String?
-  resetTokenExpiresAt  DateTime?
 
   posts            Post[]
   comments         Comment[]
@@ -40,4 +115,251 @@ model User {
 
   @@index([email])
   @@index([phone])
+}
+
+// ----------------------- CATEGORY -----------------------
+
+model Category {
+  id    String @id @default(uuid())
+  name  String @unique
+  slug  String @unique
+  icon  String?
+
+  posts      Post[]
+  expertise  CategoryExpertise[]
+
+  createdAt DateTime @default(now())
+}
+
+model CategoryExpertise {
+  id         String   @id @default(uuid())
+  userId     String
+  categoryId String
+  points     Int      @default(0)
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, categoryId])
+}
+
+// ----------------------- POST -----------------------
+
+model Post {
+  id          String     @id @default(uuid())
+  authorId    String
+  type        PostType
+  categoryId  String
+  title       String
+  description String
+  status      PostStatus @default(OPEN)
+
+  solvedCommentId String?  @unique
+
+  viewsCount    Int     @default(0)
+  likesCount    Int     @default(0)
+  commentsCount Int     @default(0)
+  isTrending    Boolean @default(false)
+
+  author      User        @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  category    Category    @relation(fields: [categoryId], references: [id])
+  attachments Attachment[]
+  aiAnalysis  AIAnalysis?
+  comments    Comment[]
+  likes       Like[]
+  favorites   Favorite[]
+  rewards     Reward[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([categoryId])
+  @@index([status])
+  @@index([isTrending])
+}
+
+model Attachment {
+  id           String         @id @default(uuid())
+  postId       String
+  type         AttachmentType
+  url          String
+  thumbnailUrl String?
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+}
+
+model AIAnalysis {
+  id                String   @id @default(uuid())
+  postId            String   @unique
+  diagnosis         String
+  suggestedSolutions Json
+  confidenceScore   Float?
+  rawResponse       Json?
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+}
+
+// ----------------------- COMMENT -----------------------
+
+model Comment {
+  id         String   @id @default(uuid())
+  postId     String
+  authorId   String
+  parentId   String?
+  content    String
+  isAIComment Boolean @default(false)
+  likesCount Int      @default(0)
+
+  post    Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author  User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parent  Comment?  @relation("CommentReplies", fields: [parentId], references: [id])
+  replies Comment[] @relation("CommentReplies")
+  likes   Like[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([postId])
+}
+
+// ----------------------- LIKE / FAVORITE -----------------------
+
+model Like {
+  id        String   @id @default(uuid())
+  userId    String
+  postId    String?
+  commentId String?
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post    Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  comment Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, postId])
+  @@unique([userId, commentId])
+}
+
+model Favorite {
+  id     String @id @default(uuid())
+  userId String
+  postId String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, postId])
+}
+
+// ----------------------- REWARD / RANKING -----------------------
+
+model Reward {
+  id           String @id @default(uuid())
+  fromUserId   String
+  toUserId     String
+  postId       String
+  points       Int
+
+  fromUser User @relation("RewardSender", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUser   User @relation("RewardReceiver", fields: [toUserId], references: [id], onDelete: Cascade)
+  post     Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+}
+
+// ----------------------- CHAT -----------------------
+
+model Conversation {
+  id      String  @id @default(uuid())
+  isGroup Boolean @default(false)
+
+  participants ConversationParticipant[]
+  messages     Message[]
+
+  createdAt DateTime @default(now())
+}
+
+model ConversationParticipant {
+  id             String @id @default(uuid())
+  conversationId String
+  userId         String
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  joinedAt DateTime @default(now())
+
+  @@unique([conversationId, userId])
+}
+
+model Message {
+  id             String   @id @default(uuid())
+  conversationId String
+  senderId       String
+  content        String?
+  attachmentUrl  String?
+  readAt         DateTime?
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([conversationId])
+}
+
+model FriendRequest {
+  id         String               @id @default(uuid())
+  senderId   String
+  receiverId String
+  status     FriendRequestStatus  @default(PENDING)
+
+  sender   User @relation("FriendRequestSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User @relation("FriendRequestReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([senderId, receiverId])
+}
+
+// ----------------------- NOTIFICATIONS -----------------------
+
+model Notification {
+  id      String           @id @default(uuid())
+  userId  String
+  type    NotificationType
+  payload Json
+  isRead  Boolean          @default(false)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, isRead])
+}
+
+// ----------------------- REPORTS -----------------------
+
+model Report {
+  id         String       @id @default(uuid())
+  reporterId String
+  targetType TargetType
+  targetId   String
+  reason     String
+  status     ReportStatus @default(PENDING)
+
+  reporter User @relation("ReportSender", fields: [reporterId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([targetType, targetId])
+  @@index([status])
 }

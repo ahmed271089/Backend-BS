@@ -1,9 +1,13 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class CommentsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notificationsService: NotificationsService,
+  ) {}
 
   async create(postId: string, authorId: string, content: string, parentId?: string) {
     const post = await this.prisma.post.findUnique({ where: { id: postId } });
@@ -16,7 +20,28 @@ export class CommentsService {
 
     await this.prisma.post.update({ where: { id: postId }, data: { commentsCount: { increment: 1 } } });
 
-    // TODO: emit notification to post.authorId (and parent comment author if a reply)
+    if (post.authorId !== authorId) {
+      await this.notificationsService.create(post.authorId, 'COMMENT', {
+        postId,
+        postTitle: post.title,
+        commentId: comment.id,
+        authorId,
+      });
+    }
+
+    if (parentId) {
+      const parent = await this.prisma.comment.findUnique({ where: { id: parentId } });
+      if (parent && parent.authorId !== authorId && parent.authorId !== post.authorId) {
+        await this.notificationsService.create(parent.authorId, 'COMMENT', {
+          postId,
+          postTitle: post.title,
+          commentId: comment.id,
+          authorId,
+          isReply: true,
+        });
+      }
+    }
+
     return comment;
   }
 
@@ -48,7 +73,7 @@ export class CommentsService {
     const comment = await this.prisma.comment.findUnique({ where: { id: commentId } });
     if (!comment) throw new NotFoundException('Comment not found');
     if (comment.authorId !== requesterId && requesterRole !== 'ADMIN') {
-      throw new NotFoundException('Comment not found');
+      throw new ForbiddenException('You can only delete your own comments');
     }
     await this.prisma.comment.delete({ where: { id: commentId } });
     await this.prisma.post.update({ where: { id: comment.postId }, data: { commentsCount: { decrement: 1 } } });

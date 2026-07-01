@@ -9,16 +9,17 @@ import { CommentsModule } from './comments/comments.module';
 import { RewardsModule } from './rewards/rewards.module';
 import { AgentClientModule } from './agent-client/agent-client.module';
 import { ChatModule } from './chat/chat.module';
-
-// Not yet implemented — built in the next steps:
-// import { NotificationsModule } from './notifications/notifications.module';
-// import { ReportsModule } from './reports/reports.module';
-// import { SearchModule } from './search/search.module';
+import { UploadsModule } from './uploads/uploads.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { ReportsModule } from './reports/reports.module';
+import { AdminModule } from './admin/admin.module';
+import { MailModule } from './modules/mail/mail.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     PrismaModule,
+    MailModule,
     AuthModule,
     UsersModule,
     CategoriesModule,
@@ -27,6 +28,10 @@ import { ChatModule } from './chat/chat.module';
     CommentsModule,
     RewardsModule,
     ChatModule,
+    UploadsModule,
+    NotificationsModule,
+    ReportsModule,
+    AdminModule,
   ],
 })
 export class AppModule {}

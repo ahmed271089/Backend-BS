@@ -1,5 +1,5 @@
-import { Logger, UseGuards } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
+import { Logger, UseGuards } from "@nestjs/common";
+import { JwtService } from "@nestjs/jwt";
 import {
   ConnectedSocket,
   MessageBody,
@@ -19,7 +19,7 @@ interface AuthedSocket extends Socket {
 }
 
 @WebSocketGateway({
-  namespace: '/chat',
+  namespace: "/chat",
   cors: { origin: '*' }, // tighten to your app's origin(s) in production
 })
 export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
@@ -38,10 +38,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   async handleConnection(client: AuthedSocket) {
     try {
-      const token = (client.handshake.auth?.token as string) ?? client.handshake.headers.authorization?.replace('Bearer ', '');
-      if (!token) throw new Error('Missing token');
+      const token =
+        (client.handshake.auth?.token as string) ??
+        client.handshake.headers.authorization?.replace("Bearer ", "");
+      if (!token) throw new Error("Missing token");
 
-      const payload = this.jwt.verify(token, { secret: process.env.JWT_ACCESS_SECRET });
+      const payload = this.jwt.verify(token, {
+        secret: process.env.JWT_ACCESS_SECRET,
+      });
       client.user = { userId: payload.sub, role: payload.role };
 
       this.addOnlineSocket(payload.sub, client.id);
@@ -51,7 +55,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       // to this user by userId without tracking socket ids themselves.
       client.join(`user:${payload.sub}`);
     } catch (err) {
-      this.logger.warn(`Rejected unauthenticated socket connection: ${(err as Error).message}`);
+      this.logger.warn(
+        `Rejected unauthenticated socket connection: ${(err as Error).message}`,
+      );
       client.disconnect();
     }
   }
@@ -64,37 +70,59 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @UseGuards(WsJwtGuard)
-  @SubscribeMessage('join_conversation')
-  async joinConversation(@ConnectedSocket() client: AuthedSocket, @MessageBody() dto: JoinConversationDto) {
-    await this.chatService.assertParticipant(dto.conversationId, client.user!.userId);
+  @SubscribeMessage("join_conversation")
+  async joinConversation(
+    @ConnectedSocket() client: AuthedSocket,
+    @MessageBody() dto: JoinConversationDto,
+  ) {
+    await this.chatService.assertParticipant(
+      dto.conversationId,
+      client.user!.userId,
+    );
     client.join(`conversation:${dto.conversationId}`);
-    return { event: 'joined_conversation', conversationId: dto.conversationId };
+    return { event: "joined_conversation", conversationId: dto.conversationId };
   }
 
   @UseGuards(WsJwtGuard)
-  @SubscribeMessage('leave_conversation')
-  leaveConversation(@ConnectedSocket() client: AuthedSocket, @MessageBody() dto: JoinConversationDto) {
+  @SubscribeMessage("leave_conversation")
+  leaveConversation(
+    @ConnectedSocket() client: AuthedSocket,
+    @MessageBody() dto: JoinConversationDto,
+  ) {
     client.leave(`conversation:${dto.conversationId}`);
   }
 
   @UseGuards(WsJwtGuard)
-  @SubscribeMessage('send_message')
-  async sendMessage(@ConnectedSocket() client: AuthedSocket, @MessageBody() dto: SendMessageDto) {
+  @SubscribeMessage("send_message")
+  async sendMessage(
+    @ConnectedSocket() client: AuthedSocket,
+    @MessageBody() dto: SendMessageDto,
+  ) {
     const userId = client.user!.userId;
-    const message = await this.chatService.createMessage(dto.conversationId, userId, dto.content, dto.attachmentUrl);
+    const message = await this.chatService.createMessage(
+      dto.conversationId,
+      userId,
+      dto.content,
+      dto.attachmentUrl,
+    );
 
     // Broadcast to everyone currently in the conversation room (including sender,
     // so all of the sender's own devices/tabs stay in sync).
-    this.server.to(`conversation:${dto.conversationId}`).emit('new_message', message);
+    this.server
+      .to(`conversation:${dto.conversationId}`)
+      .emit("new_message", message);
 
     // Push a lightweight notification to participants who aren't in the room
     // right now (e.g. app in background) via their personal user:<id> room.
-    const otherUserIds = await this.chatService.getOtherParticipantIds(dto.conversationId, userId);
+    const otherUserIds = await this.chatService.getOtherParticipantIds(
+      dto.conversationId,
+      userId,
+    );
     for (const otherId of otherUserIds) {
-      this.server.to(`user:${otherId}`).emit('message_notification', {
+      this.server.to(`user:${otherId}`).emit("message_notification", {
         conversationId: dto.conversationId,
         from: message.sender,
-        preview: message.content ?? '📎 Attachment',
+        preview: message.content ?? "📎 Attachment",
       });
     }
 
@@ -102,12 +130,18 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @UseGuards(WsJwtGuard)
-  @SubscribeMessage('typing')
-  typing(@ConnectedSocket() client: AuthedSocket, @MessageBody() dto: TypingDto) {
-    this.server.to(`conversation:${dto.conversationId}`).except(client.id).emit('typing', {
-      conversationId: dto.conversationId,
-      userId: client.user!.userId,
-    });
+  @SubscribeMessage("typing")
+  typing(
+    @ConnectedSocket() client: AuthedSocket,
+    @MessageBody() dto: TypingDto,
+  ) {
+    this.server
+      .to(`conversation:${dto.conversationId}`)
+      .except(client.id)
+      .emit("typing", {
+        conversationId: dto.conversationId,
+        userId: client.user!.userId,
+      });
   }
 
   isUserOnline(userId: string): boolean {
@@ -127,6 +161,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   private removeOnlineSocket(userId: string, socketId: string) {
     this.onlineUsers.get(userId)?.delete(socketId);
-    if (this.onlineUsers.get(userId)?.size === 0) this.onlineUsers.delete(userId);
+    if (this.onlineUsers.get(userId)?.size === 0)
+      this.onlineUsers.delete(userId);
   }
 }

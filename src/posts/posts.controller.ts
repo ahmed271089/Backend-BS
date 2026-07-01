@@ -2,11 +2,11 @@ import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@ne
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { PostsService } from './posts.service';
-import { CreatePostDto } from './dto/post.dto';
+import { CreatePostDto, PreviewAnalysisDto } from './dto/post.dto';
 
 @Controller('posts')
 export class PostsController {
-  constructor(private postsService: PostsService) { }
+  constructor(private postsService: PostsService) {}
 
   @Post()
   @UseGuards(JwtAuthGuard)
@@ -18,15 +18,22 @@ export class PostsController {
   findFeed(
     @Query('categoryId') categoryId?: string,
     @Query('type') type?: 'PROBLEM' | 'SOLUTION',
+    @Query('status') status?: 'OPEN' | 'SOLVED' | 'CLOSED',
     @Query('trending') trending?: string,
     @Query('cursor') cursor?: string,
   ) {
-    return this.postsService.findFeed({ categoryId, type, trending: trending === 'true', cursor });
+    return this.postsService.findFeed({ categoryId, type, status, trending: trending === 'true', cursor });
   }
 
   @Get('search')
   search(@Query('q') q: string, @Query('categoryId') categoryId?: string) {
     return this.postsService.search(q, categoryId);
+  }
+
+  @Post('analyze-preview')
+  @UseGuards(JwtAuthGuard)
+  previewAnalysis(@Body() dto: PreviewAnalysisDto) {
+    return this.postsService.previewAnalysis(dto);
   }
 
   @Get(':id')
