@@ -1,12 +1,14 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class RewardsService {
   constructor(
     private prisma: PrismaService,
     private usersService: UsersService,
+    private notificationsService: NotificationsService,
   ) {}
 
   /**
@@ -29,13 +31,27 @@ export class RewardsService {
       throw new BadRequestException('You cannot reward your own comment');
     }
 
+    const existingReward = await this.prisma.reward.findFirst({
+      where: { postId, toUserId: comment.authorId },
+    });
+    if (existingReward) {
+      throw new BadRequestException('This contributor has already been rewarded on this post');
+    }
+
     const reward = await this.prisma.reward.create({
       data: { fromUserId, toUserId: comment.authorId, postId, points },
     });
 
     await this.usersService.addReputation(comment.authorId, post.categoryId, points);
 
-    // TODO: emit REWARD notification to comment.authorId
+    await this.notificationsService.create(comment.authorId, 'REWARD', {
+      postId,
+      postTitle: post.title,
+      commentId,
+      points,
+      fromUserId,
+    });
+
     return reward;
   }
 

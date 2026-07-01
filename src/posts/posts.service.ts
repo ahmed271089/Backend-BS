@@ -1,20 +1,25 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
 import { AgentClientService } from '../agent-client/agent-client.service';
-import { CreatePostDto } from './dto/post.dto';
+import { NotificationsService } from '../notifications/notifications.service';
+import { CreatePostDto, PreviewAnalysisDto } from './dto/post.dto';
 
 const TRENDING_INTERACTIONS_THRESHOLD = 50;
 
 @Injectable()
 export class PostsService {
+  private readonly logger = new Logger(PostsService.name);
+
   constructor(
     private prisma: PrismaService,
     private usersService: UsersService,
     private agentClient: AgentClientService,
-  ) { }
+    private notificationsService: NotificationsService,
+  ) {}
 
   async create(authorId: string, dto: CreatePostDto) {
+    const attachments = dto.attachments ?? [];
     const post = await this.prisma.post.create({
       data: {
         authorId,
@@ -22,19 +27,31 @@ export class PostsService {
         categoryId: dto.categoryId,
         title: dto.title,
         description: dto.description,
-        attachments: { create: dto.attachments },
+        ...(attachments.length ? { attachments: { create: attachments } } : {}),
       },
-      include: { attachments: true, category: true },
+      include: { attachments: true, category: true, aiAnalysis: true },
     });
 
-    // Only PROBLEM posts get an AI diagnosis. Fire-and-forget so the API
-    // response isn't blocked on the agent-ai service round trip.
-    // In production, push this onto a queue (BullMQ / Pub-Sub) instead of awaiting here.
     if (dto.type === 'PROBLEM') {
-      this.runAiAnalysis(post.id, post.title, post.description, post.category.slug, dto.attachments.map((a) => a.url));
+      this.runAiAnalysis(post.id, post.title, post.description, post.category.slug, attachments.map((a) => a.url)).catch(
+        (err) => this.logger.error(`AI analysis failed for post ${post.id}`, err as Error),
+      );
     }
 
     return post;
+  }
+
+  async previewAnalysis(dto: PreviewAnalysisDto) {
+    const category = await this.prisma.category.findUnique({ where: { id: dto.categoryId } });
+    if (!category) throw new NotFoundException('Category not found');
+
+    return this.agentClient.analyzeProblem({
+      postId: 'preview',
+      title: dto.title,
+      description: dto.description,
+      categorySlug: category.slug,
+      attachmentUrls: [],
+    });
   }
 
   private async runAiAnalysis(
@@ -62,7 +79,6 @@ export class PostsService {
       },
     });
 
-    // Also surface the AI's diagnosis as the first comment so it shows in-thread.
     const systemAuthor = await this.prisma.user.findFirst({ where: { email: 'ai-agent@system.local' } });
     if (systemAuthor) {
       await this.prisma.comment.create({
@@ -77,12 +93,20 @@ export class PostsService {
     }
   }
 
-  async findFeed(params: { categoryId?: string; type?: 'PROBLEM' | 'SOLUTION'; trending?: boolean; take?: number; cursor?: string }) {
-    const { categoryId, type, trending, take = 20, cursor } = params;
+  async findFeed(params: {
+    categoryId?: string;
+    type?: 'PROBLEM' | 'SOLUTION';
+    status?: 'OPEN' | 'SOLVED' | 'CLOSED';
+    trending?: boolean;
+    take?: number;
+    cursor?: string;
+  }) {
+    const { categoryId, type, status, trending, take = 20, cursor } = params;
     return this.prisma.post.findMany({
       where: {
         ...(categoryId ? { categoryId } : {}),
         ...(type ? { type } : {}),
+        ...(status ? { status } : {}),
         ...(trending ? { isTrending: true } : {}),
       },
       orderBy: { createdAt: 'desc' },
@@ -132,14 +156,22 @@ export class PostsService {
       throw new BadRequestException('Comment does not belong to this post');
     }
 
-    return this.prisma.post.update({
+    const updated = await this.prisma.post.update({
       where: { id: postId },
       data: { status: 'SOLVED', solvedCommentId },
     });
+
+    if (comment.authorId !== requesterId) {
+      await this.notificationsService.create(comment.authorId, 'SOLVED', {
+        postId,
+        postTitle: post.title,
+        commentId: solvedCommentId,
+      });
+    }
+
+    return updated;
   }
 
-  // Called right after markSolved, from the rewards module/controller, to keep
-  // "mark solved" and "give reward" as separate explicit user actions.
   async toggleLike(userId: string, postId: string) {
     const existing = await this.prisma.like.findUnique({
       where: { userId_postId: { userId, postId } },
@@ -175,7 +207,6 @@ export class PostsService {
     return this.prisma.post.findMany({
       where: {
         ...(categoryId ? { categoryId } : {}),
-        status: 'SOLVED',
         OR: [
           { title: { contains: query, mode: 'insensitive' } },
           { description: { contains: query, mode: 'insensitive' } },

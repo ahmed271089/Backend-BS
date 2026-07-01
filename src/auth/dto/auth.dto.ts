@@ -18,29 +18,16 @@ export class RegisterDto {
 }
 
 export class LoginDto {
-  @IsOptional()
+  @ValidateIf((o) => !o.phone)
   @IsEmail()
   email?: string;
 
-  @IsOptional()
+  @ValidateIf((o) => !o.email)
   @IsString()
   phone?: string;
 
   @IsString()
   password: string;
-}
-
-export class SocialLoginDto {
-  @IsString()
-  provider: 'GOOGLE' | 'APPLE' | 'FACEBOOK';
-
-  @IsString()
-  providerToken: string;
-}
-
-export class RefreshTokenDto {
-  @IsString()
-  refreshToken: string;
 }
 
 export class ForgotPasswordDto {
@@ -55,4 +42,17 @@ export class ResetPasswordDto {
   @IsString()
   @MinLength(8)
   newPassword: string;
+}
+
+export class SocialLoginDto {
+  @IsString()
+  provider: 'GOOGLE' | 'APPLE' | 'FACEBOOK';
+
+  @IsString()
+  providerToken: string;
+}
+
+export class RefreshTokenDto {
+  @IsString()
+  refreshToken: string;
 }

@@ -39,7 +39,11 @@ export class AgentClientService {
         throw new Error(`Agent AI responded with status ${res.status}`);
       }
 
-      const data = await res.json();
+      const data = (await res.json()) as {
+        diagnosis?: string;
+        suggestedSolutions?: string[];
+        confidenceScore?: number;
+      };
       return {
         diagnosis: data.diagnosis,
         suggestedSolutions: data.suggestedSolutions ?? [],
