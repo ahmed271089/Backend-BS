@@ -135,4 +135,37 @@ export class UsersService {
       select: PUBLIC_USER_SELECT,
     });
   }
+
+  async reactivate(id: string) {
+    return this.prisma.user.update({
+      where: { id },
+      data: { status: 'ACTIVE' },
+      select: PUBLIC_USER_SELECT,
+    });
+  }
+
+  async listUsers(q?: string, take = 50) {
+    return this.prisma.user.findMany({
+      where: q
+        ? {
+            OR: [
+              { name: { contains: q, mode: 'insensitive' } },
+              { email: { contains: q, mode: 'insensitive' } },
+            ],
+          }
+        : {},
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        avatarUrl: true,
+        status: true,
+        reputationPoints: true,
+        isVerified: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+      take,
+    });
+  }
 }

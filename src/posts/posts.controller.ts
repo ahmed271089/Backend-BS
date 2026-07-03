@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards, Delete } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { PostsService } from './posts.service';
@@ -21,8 +21,9 @@ export class PostsController {
     @Query('status') status?: 'OPEN' | 'SOLVED' | 'CLOSED',
     @Query('trending') trending?: string,
     @Query('cursor') cursor?: string,
+    @Query('authorId') authorId?: string,
   ) {
-    return this.postsService.findFeed({ categoryId, type, status, trending: trending === 'true', cursor });
+    return this.postsService.findFeed({ categoryId, type, status, trending: trending === 'true', cursor, authorId });
   }
 
   @Get('search')
@@ -61,5 +62,11 @@ export class PostsController {
   @UseGuards(JwtAuthGuard)
   toggleFavorite(@CurrentUser() user: { userId: string }, @Param('id') id: string) {
     return this.postsService.toggleFavorite(user.userId, id);
+  }
+
+  @Delete(':id')
+  @UseGuards(JwtAuthGuard)
+  deletePost(@CurrentUser() user: { userId: string }, @Param('id') id: string) {
+    return this.postsService.delete(id, user.userId);
   }
 }
