@@ -100,16 +100,22 @@ export class PostsService {
     trending?: boolean;
     take?: number;
     cursor?: string;
+    authorId?: string;
   }) {
-    const { categoryId, type, status, trending, take = 20, cursor } = params;
+    const { categoryId, type, status, trending, take = 20, cursor, authorId } = params;
     return this.prisma.post.findMany({
       where: {
         ...(categoryId ? { categoryId } : {}),
         ...(type ? { type } : {}),
         ...(status ? { status } : {}),
-        ...(trending ? { isTrending: true } : {}),
+        ...(authorId ? { authorId } : {}),
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: trending
+        ? [
+            { isTrending: 'desc' as const },
+            { createdAt: 'desc' as const },
+          ]
+        : { createdAt: 'desc' as const },
       take,
       ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
       include: {
@@ -170,6 +176,17 @@ export class PostsService {
     }
 
     return updated;
+  }
+
+  async delete(postId: string, requesterId: string) {
+    const post = await this.prisma.post.findUnique({ where: { id: postId } });
+    if (!post) throw new NotFoundException('Post not found');
+    if (post.authorId !== requesterId) {
+      throw new ForbiddenException('Only the post author can delete it');
+    }
+
+    await this.prisma.post.delete({ where: { id: postId } });
+    return { success: true };
   }
 
   async toggleLike(userId: string, postId: string) {

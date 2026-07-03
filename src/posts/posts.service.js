@@ -113,9 +113,13 @@ let PostsService = (() => {
                 where: {
                     ...(categoryId ? { categoryId } : {}),
                     ...(type ? { type } : {}),
-                    ...(trending ? { isTrending: true } : {}),
                 },
-                orderBy: { createdAt: 'desc' },
+                orderBy: trending
+                    ? [
+                        { isTrending: 'desc' },
+                        { createdAt: 'desc' },
+                      ]
+                    : { createdAt: 'desc' },
                 take,
                 ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
                 include: {

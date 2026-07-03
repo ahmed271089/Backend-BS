@@ -15,6 +15,13 @@ export class UsersController {
     return this.usersService.findById(user.userId);
   }
 
+  @Get()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  listUsers(@Query('q') q?: string) {
+    return this.usersService.listUsers(q);
+  }
+
   @Get('leaderboard')
   getLeaderboard(@Query('categoryId') categoryId?: string) {
     return this.usersService.getLeaderboard(categoryId);
@@ -58,5 +65,12 @@ export class UsersController {
   @Roles('ADMIN')
   verify(@Param('id') id: string) {
     return this.usersService.verify(id);
+  }
+
+  @Patch(':id/reactivate')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  reactivate(@Param('id') id: string) {
+    return this.usersService.reactivate(id);
   }
 }
