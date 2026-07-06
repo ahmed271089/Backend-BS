@@ -4,6 +4,7 @@ import { UsersService } from '../users/users.service';
 import { AgentClientService } from '../agent-client/agent-client.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CreatePostDto, PreviewAnalysisDto } from './dto/post.dto';
+import { REPUTATION_RULES } from '../common/constants/reputation.constants';
 
 const TRENDING_INTERACTIONS_THRESHOLD = 50;
 
@@ -37,6 +38,8 @@ export class PostsService {
         (err) => this.logger.error(`AI analysis failed for post ${post.id}`, err as Error),
       );
     }
+
+    await this.usersService.addReputation(authorId, post.categoryId, REPUTATION_RULES.CREATE_POST, 'CREATE_POST', post.id, 'POST');
 
     return post;
   }
@@ -123,6 +126,11 @@ export class PostsService {
         category: true,
         attachments: true,
         aiAnalysis: true,
+        comments: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          include: { author: { select: { id: true, name: true, avatarUrl: true } } }
+        },
         _count: { select: { comments: true, likes: true } },
       },
     });
@@ -173,9 +181,19 @@ export class PostsService {
         postTitle: post.title,
         commentId: solvedCommentId,
       });
+      await this.usersService.addReputation(comment.authorId, post.categoryId, REPUTATION_RULES.MARK_SOLVED, 'MARK_SOLVED', comment.id, 'COMMENT');
     }
 
     return updated;
+  }
+
+  async deleteAll(requesterId: string) {
+    const posts = await this.prisma.post.findMany({ where: { authorId: requesterId }, select: { id: true, categoryId: true } });
+    for (const p of posts) {
+      await this.usersService.addReputation(requesterId, p.categoryId, -REPUTATION_RULES.CREATE_POST, 'DELETE_POST', p.id, 'POST');
+    }
+    await this.prisma.post.deleteMany({ where: { authorId: requesterId } });
+    return { success: true };
   }
 
   async delete(postId: string, requesterId: string) {
@@ -186,10 +204,14 @@ export class PostsService {
     }
 
     await this.prisma.post.delete({ where: { id: postId } });
+    await this.usersService.addReputation(post.authorId, post.categoryId, -REPUTATION_RULES.CREATE_POST, 'DELETE_POST', post.id, 'POST');
     return { success: true };
   }
 
   async toggleLike(userId: string, postId: string) {
+    const post = await this.prisma.post.findUnique({ where: { id: postId } });
+    if (!post) throw new NotFoundException('Post not found');
+
     const existing = await this.prisma.like.findUnique({
       where: { userId_postId: { userId, postId } },
     });
@@ -197,11 +219,19 @@ export class PostsService {
     if (existing) {
       await this.prisma.like.delete({ where: { id: existing.id } });
       await this.prisma.post.update({ where: { id: postId }, data: { likesCount: { decrement: 1 } } });
+      
+      // Revoke points
+      await this.usersService.addReputation(post.authorId, post.categoryId, -REPUTATION_RULES.RECEIVE_LIKE, 'REVOKE_LIKE', post.id, 'POST');
+      
       return { liked: false };
     }
 
     await this.prisma.like.create({ data: { userId, postId } });
     await this.prisma.post.update({ where: { id: postId }, data: { likesCount: { increment: 1 } } });
+    
+    // Award points
+    await this.usersService.addReputation(post.authorId, post.categoryId, REPUTATION_RULES.RECEIVE_LIKE, 'RECEIVE_LIKE', post.id, 'POST');
+    
     await this.checkTrending(postId);
     return { liked: true };
   }

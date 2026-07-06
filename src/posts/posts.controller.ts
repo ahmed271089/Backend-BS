@@ -64,6 +64,12 @@ export class PostsController {
     return this.postsService.toggleFavorite(user.userId, id);
   }
 
+  @Delete('all')
+  @UseGuards(JwtAuthGuard)
+  deleteAllPosts(@CurrentUser() user: { userId: string }) {
+    return this.postsService.deleteAll(user.userId);
+  }
+
   @Delete(':id')
   @UseGuards(JwtAuthGuard)
   deletePost(@CurrentUser() user: { userId: string }, @Param('id') id: string) {

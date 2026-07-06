@@ -1,12 +1,15 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { UsersService } from '../users/users.service';
+import { REPUTATION_RULES } from '../common/constants/reputation.constants';
 
 @Injectable()
 export class CommentsService {
   constructor(
     private prisma: PrismaService,
     private notificationsService: NotificationsService,
+    private usersService: UsersService,
   ) {}
 
   async create(postId: string, authorId: string, content: string, parentId?: string) {
@@ -42,6 +45,8 @@ export class CommentsService {
       }
     }
 
+    await this.usersService.addReputation(authorId, post.categoryId, REPUTATION_RULES.CREATE_COMMENT, 'CREATE_COMMENT', comment.id, 'COMMENT');
+
     return comment;
   }
 
@@ -54,6 +59,12 @@ export class CommentsService {
   }
 
   async toggleLike(userId: string, commentId: string) {
+    const comment = await this.prisma.comment.findUnique({
+      where: { id: commentId },
+      include: { post: true },
+    });
+    if (!comment) throw new NotFoundException('Comment not found');
+
     const existing = await this.prisma.like.findUnique({
       where: { userId_commentId: { userId, commentId } },
     });
@@ -61,21 +72,35 @@ export class CommentsService {
     if (existing) {
       await this.prisma.like.delete({ where: { id: existing.id } });
       await this.prisma.comment.update({ where: { id: commentId }, data: { likesCount: { decrement: 1 } } });
+      
+      // Revoke points
+      await this.usersService.addReputation(comment.authorId, comment.post.categoryId, -REPUTATION_RULES.RECEIVE_LIKE, 'REVOKE_LIKE', comment.id, 'COMMENT');
+
       return { liked: false };
     }
 
     await this.prisma.like.create({ data: { userId, commentId } });
     await this.prisma.comment.update({ where: { id: commentId }, data: { likesCount: { increment: 1 } } });
+    
+    // Award points
+    await this.usersService.addReputation(comment.authorId, comment.post.categoryId, REPUTATION_RULES.RECEIVE_LIKE, 'RECEIVE_LIKE', comment.id, 'COMMENT');
+
     return { liked: true };
   }
 
   async delete(commentId: string, requesterId: string, requesterRole: string) {
-    const comment = await this.prisma.comment.findUnique({ where: { id: commentId } });
+    const comment = await this.prisma.comment.findUnique({ 
+      where: { id: commentId },
+      include: { post: true },
+    });
     if (!comment) throw new NotFoundException('Comment not found');
     if (comment.authorId !== requesterId && requesterRole !== 'ADMIN') {
       throw new ForbiddenException('You can only delete your own comments');
     }
     await this.prisma.comment.delete({ where: { id: commentId } });
     await this.prisma.post.update({ where: { id: comment.postId }, data: { commentsCount: { decrement: 1 } } });
+    
+    // Revoke points
+    await this.usersService.addReputation(comment.authorId, comment.post.categoryId, -REPUTATION_RULES.CREATE_COMMENT, 'DELETE_COMMENT', comment.id, 'COMMENT');
   }
 }

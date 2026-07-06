@@ -15,7 +15,7 @@ export interface AgentAnalysisResult {
 @Injectable()
 export class AgentClientService {
   private readonly logger = new Logger(AgentClientService.name);
-  private readonly baseUrl = process.env.AGENT_AI_BASE_URL;
+  private readonly baseUrl = (process.env.AGENT_AI_BASE_URL || '').replace('localhost:8001', '127.0.0.1:8002').replace('localhost:8002', '127.0.0.1:8002');
   private readonly apiKey = process.env.AGENT_AI_API_KEY;
 
   async analyzeProblem(params: {
