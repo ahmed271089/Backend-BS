@@ -109,6 +109,7 @@ model User {
   messages         Message[]
 
   notifications    Notification[]
+  reputationHistory ReputationHistory[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -127,6 +128,7 @@ model Category {
 
   posts      Post[]
   expertise  CategoryExpertise[]
+  reputationHistory ReputationHistory[]
 
   createdAt DateTime @default(now())
 }
@@ -362,4 +364,24 @@ model Report {
 
   @@index([targetType, targetId])
   @@index([status])
+}
+
+// ----------------------- REPUTATION HISTORY -----------------------
+
+model ReputationHistory {
+  id         String      @id @default(uuid())
+  userId     String
+  categoryId String?
+  action     String      // The action that caused the change (e.g., 'CREATE_POST', 'RECEIVE_LIKE')
+  points     Int         // Points added (positive) or revoked (negative)
+  targetId   String?     // ID of the related post or comment
+  targetType TargetType? // e.g., POST, COMMENT
+
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
+  @@index([action])
 }

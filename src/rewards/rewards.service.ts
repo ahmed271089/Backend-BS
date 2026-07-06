@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { REPUTATION_RULES } from '../common/constants/reputation.constants';
 
 @Injectable()
 export class RewardsService {
@@ -17,6 +18,10 @@ export class RewardsService {
    * bumps that user's reputation in the post's category.
    */
   async give(fromUserId: string, postId: string, commentId: string, points: number) {
+    if (points < REPUTATION_RULES.MIN_REWARD_POINTS || points > REPUTATION_RULES.MAX_REWARD_POINTS) {
+      throw new BadRequestException(`Reward points must be between ${REPUTATION_RULES.MIN_REWARD_POINTS} and ${REPUTATION_RULES.MAX_REWARD_POINTS}`);
+    }
+
     const post = await this.prisma.post.findUnique({ where: { id: postId } });
     if (!post) throw new NotFoundException('Post not found');
     if (post.authorId !== fromUserId) {
@@ -42,7 +47,7 @@ export class RewardsService {
       data: { fromUserId, toUserId: comment.authorId, postId, points },
     });
 
-    await this.usersService.addReputation(comment.authorId, post.categoryId, points);
+    await this.usersService.addReputation(comment.authorId, post.categoryId, points, 'MANUAL_REWARD', reward.id, 'USER');
 
     await this.notificationsService.create(comment.authorId, 'REWARD', {
       postId,
