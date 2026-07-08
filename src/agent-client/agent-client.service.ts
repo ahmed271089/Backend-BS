@@ -7,6 +7,12 @@ export interface AgentAnalysisResult {
   raw?: unknown;
 }
 
+export interface AgentModerationResult {
+  action: 'DISMISSED' | 'ACTION_TAKEN' | 'PENDING';
+  confidenceScore: number;
+  explanation: string;
+}
+
 /**
  * Thin client around the separate `agent-ai` service (Google ADK).
  * Called asynchronously after a PROBLEM post + attachments are saved.
@@ -57,6 +63,38 @@ export class AgentClientService {
         diagnosis: 'AI analysis is temporarily unavailable. The community will help shortly.',
         suggestedSolutions: [],
         confidenceScore: 0,
+      };
+    }
+  }
+
+  async moderateReport(params: {
+    reportId: string;
+    targetType: string;
+    targetId: string;
+    reason: string;
+    details?: string | null;
+  }): Promise<AgentModerationResult> {
+    try {
+      const res = await fetch(`${this.baseUrl}/moderate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(this.apiKey ? { Authorization: `Bearer ${this.apiKey}` } : {}),
+        },
+        body: JSON.stringify(params),
+      });
+
+      if (!res.ok) {
+        throw new Error(`Agent AI responded with status ${res.status}`);
+      }
+
+      return (await res.json()) as AgentModerationResult;
+    } catch (err) {
+      this.logger.error(`Agent AI moderation failed for report ${params.reportId}`, err as Error);
+      return {
+        action: 'PENDING',
+        confidenceScore: 0,
+        explanation: 'AI moderation unavailable.',
       };
     }
   }

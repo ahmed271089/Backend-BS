@@ -232,7 +232,13 @@ export class UsersService {
     }));
   }
 
-  async suspend(id: string) {
+  async suspend(id: string, adminId?: string) {
+    if (adminId) {
+      const admin = await this.prisma.user.findUnique({ where: { id: adminId }, select: { name: true } });
+      await this.prisma.moderationAudit.create({
+        data: { actorId: adminId, actorName: admin?.name ?? 'Admin', action: 'SUSPEND', targetType: 'USER', targetId: id }
+      });
+    }
     return this.prisma.user.update({
       where: { id },
       data: { status: 'SUSPENDED' },
@@ -240,7 +246,13 @@ export class UsersService {
     });
   }
 
-  async ban(id: string) {
+  async ban(id: string, adminId?: string) {
+    if (adminId) {
+      const admin = await this.prisma.user.findUnique({ where: { id: adminId }, select: { name: true } });
+      await this.prisma.moderationAudit.create({
+        data: { actorId: adminId, actorName: admin?.name ?? 'Admin', action: 'BAN', targetType: 'USER', targetId: id }
+      });
+    }
     return this.prisma.user.update({
       where: { id },
       data: { status: 'BANNED' },

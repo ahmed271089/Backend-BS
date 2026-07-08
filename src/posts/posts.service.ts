@@ -108,6 +108,7 @@ export class PostsService {
     const { categoryId, type, status, trending, take = 20, cursor, authorId } = params;
     return this.prisma.post.findMany({
       where: {
+        isHidden: false,
         ...(categoryId ? { categoryId } : {}),
         ...(type ? { type } : {}),
         ...(status ? { status } : {}),
@@ -120,6 +121,28 @@ export class PostsService {
           ]
         : { createdAt: 'desc' as const },
       take,
+      ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
+      include: {
+        author: { select: { id: true, name: true, avatarUrl: true, reputationPoints: true } },
+        category: true,
+        attachments: true,
+        aiAnalysis: true,
+        comments: {
+          where: { isHidden: false },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          include: { author: { select: { id: true, name: true, avatarUrl: true } } }
+        },
+        _count: { select: { comments: true, likes: true } },
+      },
+    });
+  }
+
+  async findMyPosts(userId: string, cursor?: string) {
+    return this.prisma.post.findMany({
+      where: { authorId: userId },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
       ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
       include: {
         author: { select: { id: true, name: true, avatarUrl: true, reputationPoints: true } },
@@ -145,12 +168,13 @@ export class PostsService {
         attachments: true,
         aiAnalysis: true,
         comments: {
+          where: { isHidden: false },
           orderBy: { createdAt: 'asc' },
           include: { author: { select: { id: true, name: true, avatarUrl: true } } },
         },
       },
     });
-    if (!post) throw new NotFoundException('Post not found');
+    if (!post || post.isHidden) throw new NotFoundException('Post not found');
 
     await this.prisma.post.update({ where: { id }, data: { viewsCount: { increment: 1 } } });
     await this.checkTrending(id);
@@ -250,9 +274,35 @@ export class PostsService {
     return { favorited: true };
   }
 
+  async findFavorites(userId: string) {
+    const favorites = await this.prisma.favorite.findMany({
+      where: { userId, post: { isHidden: false } },
+      include: {
+        post: {
+          include: {
+            author: { select: { id: true, name: true, avatarUrl: true, reputationPoints: true } },
+            category: true,
+            attachments: true,
+            aiAnalysis: true,
+            comments: {
+              where: { isHidden: false },
+              orderBy: { createdAt: 'desc' },
+              take: 1,
+              include: { author: { select: { id: true, name: true, avatarUrl: true } } }
+            },
+            _count: { select: { comments: true, likes: true } },
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+    return favorites.map(f => f.post);
+  }
+
   async search(query: string, categoryId?: string) {
     return this.prisma.post.findMany({
       where: {
+        isHidden: false,
         ...(categoryId ? { categoryId } : {}),
         OR: [
           { title: { contains: query, mode: 'insensitive' } },

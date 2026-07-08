@@ -162,6 +162,7 @@ model Post {
   likesCount    Int     @default(0)
   commentsCount Int     @default(0)
   isTrending    Boolean @default(false)
+  isHidden      Boolean @default(false)
 
   author      User        @relation(fields: [authorId], references: [id], onDelete: Cascade)
   category    Category    @relation(fields: [categoryId], references: [id])
@@ -214,6 +215,7 @@ model Comment {
   parentId   String?
   content    String
   isAIComment Boolean @default(false)
+  isHidden   Boolean  @default(false)
   likesCount Int      @default(0)
 
   post    Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
@@ -316,6 +318,23 @@ model Message {
   @@index([conversationId])
 }
 
+// ----------------------- MODERATION AUDIT -----------------------
+
+model ModerationAudit {
+  id          String     @id @default(uuid())
+  actorId     String?
+  actorName   String
+  action      String
+  targetType  TargetType 
+  targetId    String
+  reason      String?
+
+  createdAt   DateTime   @default(now())
+
+  @@index([targetId])
+  @@index([targetType])
+}
+
 model FriendRequest {
   id         String               @id @default(uuid())
   senderId   String
@@ -355,6 +374,7 @@ model Report {
   targetType TargetType
   targetId   String
   reason     String
+  details    String?
   status     ReportStatus @default(PENDING)
 
   reporter User @relation("ReportSender", fields: [reporterId], references: [id], onDelete: Cascade)

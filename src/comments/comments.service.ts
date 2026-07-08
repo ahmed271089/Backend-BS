@@ -52,7 +52,7 @@ export class CommentsService {
 
   async findByPost(postId: string) {
     return this.prisma.comment.findMany({
-      where: { postId },
+      where: { postId, isHidden: false },
       orderBy: { createdAt: 'asc' },
       include: { author: { select: { id: true, name: true, avatarUrl: true } } },
     });

@@ -26,6 +26,12 @@ export class PostsController {
     return this.postsService.findFeed({ categoryId, type, status, trending: trending === 'true', cursor, authorId });
   }
 
+  @Get('my-posts')
+  @UseGuards(JwtAuthGuard)
+  findMyPosts(@CurrentUser() user: { userId: string }, @Query('cursor') cursor?: string) {
+    return this.postsService.findMyPosts(user.userId, cursor);
+  }
+
   @Get('search')
   search(@Query('q') q: string, @Query('categoryId') categoryId?: string) {
     return this.postsService.search(q, categoryId);
@@ -35,6 +41,12 @@ export class PostsController {
   @UseGuards(JwtAuthGuard)
   previewAnalysis(@Body() dto: PreviewAnalysisDto) {
     return this.postsService.previewAnalysis(dto);
+  }
+
+  @Get('favorites')
+  @UseGuards(JwtAuthGuard)
+  findFavorites(@CurrentUser() user: { userId: string }) {
+    return this.postsService.findFavorites(user.userId);
   }
 
   @Get(':id')

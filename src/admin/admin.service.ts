@@ -114,4 +114,47 @@ export class AdminService {
 
     return result;
   }
+
+  private async getAdminName(adminId: string): Promise<string> {
+    const admin = await this.prisma.user.findUnique({ where: { id: adminId }, select: { name: true } });
+    return admin?.name ?? 'Admin';
+  }
+
+  async updatePostVisibility(id: string, isHidden: boolean, adminId: string) {
+    const actorName = await this.getAdminName(adminId);
+    await this.prisma.moderationAudit.create({
+      data: { actorId: adminId, actorName, action: isHidden ? 'HIDE' : 'RESTORE', targetType: 'POST', targetId: id }
+    });
+    return this.prisma.post.update({
+      where: { id },
+      data: { isHidden }
+    });
+  }
+
+  async deletePost(id: string, adminId: string) {
+    const actorName = await this.getAdminName(adminId);
+    await this.prisma.moderationAudit.create({
+      data: { actorId: adminId, actorName, action: 'DELETE', targetType: 'POST', targetId: id }
+    });
+    return this.prisma.post.delete({ where: { id } });
+  }
+
+  async updateCommentVisibility(id: string, isHidden: boolean, adminId: string) {
+    const actorName = await this.getAdminName(adminId);
+    await this.prisma.moderationAudit.create({
+      data: { actorId: adminId, actorName, action: isHidden ? 'HIDE' : 'RESTORE', targetType: 'COMMENT', targetId: id }
+    });
+    return this.prisma.comment.update({
+      where: { id },
+      data: { isHidden }
+    });
+  }
+
+  async deleteComment(id: string, adminId: string) {
+    const actorName = await this.getAdminName(adminId);
+    await this.prisma.moderationAudit.create({
+      data: { actorId: adminId, actorName, action: 'DELETE', targetType: 'COMMENT', targetId: id }
+    });
+    return this.prisma.comment.delete({ where: { id } });
+  }
 }
