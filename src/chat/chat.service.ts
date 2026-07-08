@@ -12,7 +12,7 @@ export class ChatService {
   constructor(
     private prisma: PrismaService,
     private notificationsService: NotificationsService,
-  ) {}
+  ) { }
 
   // ----------------------- Conversations -----------------------
 

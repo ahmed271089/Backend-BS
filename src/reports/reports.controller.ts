@@ -13,9 +13,9 @@ export class ReportsController {
   @Post()
   create(
     @CurrentUser() user: { userId: string },
-    @Body() body: { targetType: 'POST' | 'COMMENT' | 'MESSAGE' | 'USER'; targetId: string; reason: string },
+    @Body() body: { targetType: 'POST' | 'COMMENT' | 'MESSAGE' | 'USER'; targetId: string; reason: string; details?: string },
   ) {
-    return this.reportsService.create(user.userId, body.targetType, body.targetId, body.reason);
+    return this.reportsService.create(user.userId, body.targetType, body.targetId, body.reason, body.details);
   }
 }
 
@@ -30,8 +30,18 @@ export class AdminReportsController {
     return this.reportsService.listPending();
   }
 
+  @Get('history')
+  listHistory() {
+    return this.reportsService.listHistory();
+  }
+
+  @Get(':id')
+  getReportDetails(@Param('id') id: string) {
+    return this.reportsService.getReportDetails(id);
+  }
+
   @Patch(':id')
-  updateStatus(@Param('id') id: string, @Body() body: { status: 'DISMISSED' | 'ACTION_TAKEN' }) {
-    return this.reportsService.updateStatus(id, body.status);
+  updateStatus(@CurrentUser() user: { userId: string }, @Param('id') id: string, @Body() body: { status: 'DISMISSED' | 'ACTION_TAKEN' }) {
+    return this.reportsService.updateStatus(id, body.status, user.userId);
   }
 }

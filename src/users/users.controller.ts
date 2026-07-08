@@ -49,15 +49,15 @@ export class UsersController {
   @Patch(':id/suspend')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN')
-  suspend(@Param('id') id: string) {
-    return this.usersService.suspend(id);
+  suspend(@CurrentUser() user: { userId: string }, @Param('id') id: string) {
+    return this.usersService.suspend(id, user.userId);
   }
 
   @Patch(':id/ban')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN')
-  ban(@Param('id') id: string) {
-    return this.usersService.ban(id);
+  ban(@CurrentUser() user: { userId: string }, @Param('id') id: string) {
+    return this.usersService.ban(id, user.userId);
   }
 
   @Patch(':id/verify')
