@@ -1,4 +1,4 @@
-import { ArrayMinSize, IsArray, IsEnum, IsIn, IsOptional, IsString, IsUUID, MinLength } from 'class-validator';
+import { ArrayMinSize, IsArray, IsEnum, IsIn, IsOptional, IsString, IsUUID, MinLength, MaxLength } from 'class-validator';
 
 export class AttachmentInputDto {
   @IsIn(['PHOTO', 'VIDEO'])
@@ -44,9 +44,17 @@ export class PreviewAnalysisDto {
 export class CreateCommentDto {
   @IsString()
   @MinLength(1)
+  @MaxLength(2000)
   content: string;
 
   @IsOptional()
   @IsUUID()
   parentId?: string;
+}
+
+export class UpdateCommentDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(2000)
+  content: string;
 }

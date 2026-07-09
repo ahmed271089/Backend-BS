@@ -37,8 +37,13 @@ export class PostsController {
 
   @Get('search')
   @UseGuards(OptionalJwtAuthGuard)
-  search(@CurrentUser() user: { userId?: string }, @Query('q') q: string, @Query('categoryId') categoryId?: string) {
-    return this.postsService.search(q, categoryId, user?.userId);
+  search(
+    @CurrentUser() user: { userId?: string }, 
+    @Query('q') q: string, 
+    @Query('categoryId') categoryId?: string,
+    @Query('cursor') cursor?: string
+  ) {
+    return this.postsService.search(q, categoryId, user?.userId, cursor);
   }
 
   @Post('analyze-preview')
