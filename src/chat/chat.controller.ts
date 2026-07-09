@@ -12,7 +12,12 @@ import {
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
 import { ChatService } from "./chat.service";
-import { SendFriendRequestDto, StartConversationDto } from "./dto/chat.dto";
+import {
+  SendFriendRequestDto,
+  StartConversationDto,
+  CreateGroupConversationDto,
+  SendMessageRestDto,
+} from "./dto/chat.dto";
 
 @Controller()
 @UseGuards(JwtAuthGuard)
@@ -35,6 +40,17 @@ export class ChatController {
     );
   }
 
+  @Post("conversations/group")
+  createGroupConversation(
+    @CurrentUser() user: { userId: string },
+    @Body() dto: CreateGroupConversationDto,
+  ) {
+    return this.chatService.createGroupConversation(
+      user.userId,
+      dto.participantIds,
+    );
+  }
+
   @Get("conversations/:id/messages")
   getMessages(
     @CurrentUser() user: { userId: string },
@@ -42,6 +58,20 @@ export class ChatController {
     @Query("before") before?: string,
   ) {
     return this.chatService.getMessages(id, user.userId, 50, before);
+  }
+
+  @Post("conversations/:id/messages")
+  sendMessage(
+    @CurrentUser() user: { userId: string },
+    @Param("id") id: string,
+    @Body() dto: SendMessageRestDto,
+  ) {
+    return this.chatService.createMessage(
+      id,
+      user.userId,
+      dto.content,
+      dto.attachmentUrl,
+    );
   }
 
   @Patch("conversations/:id/read")
