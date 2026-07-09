@@ -338,23 +338,43 @@ export class PostsService {
     });
   }
 
-  async search(query: string, categoryId?: string, requestUserId?: string) {
+  async search(query: string, categoryId?: string, requestUserId?: string, cursor?: string) {
+    const formattedQuery = query.replace(/[^a-zA-Z0-9 ]/g, '').trim().split(/\s+/).filter(Boolean).join(' | ');
+    const searchCondition = formattedQuery ? {
+      OR: [
+        { title: { search: formattedQuery } },
+        { description: { search: formattedQuery } },
+      ]
+    } : {
+      OR: [
+        { title: { contains: query, mode: 'insensitive' as const } },
+        { description: { contains: query, mode: 'insensitive' as const } },
+      ]
+    };
+
+    const orderBy: any = formattedQuery ? {
+      _relevance: {
+        fields: ['title', 'description'],
+        search: formattedQuery,
+        sort: 'desc'
+      }
+    } : { createdAt: 'desc' };
+
     const posts = await this.prisma.post.findMany({
       where: {
         isHidden: false,
         ...(categoryId ? { categoryId } : {}),
-        OR: [
-          { title: { contains: query, mode: 'insensitive' } },
-          { description: { contains: query, mode: 'insensitive' } },
-        ],
+        ...searchCondition,
       },
+      orderBy,
+      take: 20,
+      ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
       include: { 
         category: true, 
         attachments: true,
         favorites: requestUserId ? { where: { userId: requestUserId } } : false,
         likes: requestUserId ? { where: { userId: requestUserId } } : false,
       },
-      take: 30,
     });
 
     return posts.map(p => {

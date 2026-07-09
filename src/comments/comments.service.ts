@@ -50,11 +50,22 @@ export class CommentsService {
     return comment;
   }
 
-  async findByPost(postId: string) {
-    return this.prisma.comment.findMany({
+  async findByPost(postId: string, cursor?: string, requestUserId?: string) {
+    const comments = await this.prisma.comment.findMany({
       where: { postId, isHidden: false },
       orderBy: { createdAt: 'asc' },
-      include: { author: { select: { id: true, name: true, avatarUrl: true } } },
+      take: 20,
+      ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
+      include: { 
+        author: { select: { id: true, name: true, avatarUrl: true } },
+        likes: requestUserId ? { where: { userId: requestUserId } } : false,
+      },
+    });
+
+    return comments.map(c => {
+      const isLiked = c.likes ? c.likes.length > 0 : false;
+      delete (c as any).likes;
+      return { ...c, isLiked };
     });
   }
 
@@ -98,9 +109,38 @@ export class CommentsService {
       throw new ForbiddenException('You can only delete your own comments');
     }
     await this.prisma.comment.delete({ where: { id: commentId } });
-    await this.prisma.post.update({ where: { id: comment.postId }, data: { commentsCount: { decrement: 1 } } });
+
+    // Keep solution status in sync with accepted comments
+    if (comment.post.solvedCommentId === commentId) {
+      await this.prisma.post.update({
+        where: { id: comment.postId },
+        data: { 
+          commentsCount: { decrement: 1 },
+          status: 'OPEN',
+          solvedCommentId: null
+        }
+      });
+    } else {
+      await this.prisma.post.update({ 
+        where: { id: comment.postId }, 
+        data: { commentsCount: { decrement: 1 } } 
+      });
+    }
     
     // Revoke points
     await this.usersService.addReputation(comment.authorId, comment.post.categoryId, -REPUTATION_RULES.CREATE_COMMENT, 'DELETE_COMMENT', comment.id, 'COMMENT');
+  }
+
+  async update(commentId: string, requesterId: string, content: string) {
+    const comment = await this.prisma.comment.findUnique({ where: { id: commentId } });
+    if (!comment) throw new NotFoundException('Comment not found');
+    if (comment.authorId !== requesterId) {
+      throw new ForbiddenException('You can only edit your own comments');
+    }
+
+    return this.prisma.comment.update({
+      where: { id: commentId },
+      data: { content },
+    });
   }
 }
