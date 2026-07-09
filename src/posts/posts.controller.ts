@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards, Delete } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from '../common/guards/optional-jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { PostsService } from './posts.service';
 import { CreatePostDto, PreviewAnalysisDto } from './dto/post.dto';
@@ -15,7 +16,9 @@ export class PostsController {
   }
 
   @Get()
+  @UseGuards(OptionalJwtAuthGuard)
   findFeed(
+    @CurrentUser() user: { userId?: string },
     @Query('categoryId') categoryId?: string,
     @Query('type') type?: 'PROBLEM' | 'SOLUTION',
     @Query('status') status?: 'OPEN' | 'SOLVED' | 'CLOSED',
@@ -23,7 +26,7 @@ export class PostsController {
     @Query('cursor') cursor?: string,
     @Query('authorId') authorId?: string,
   ) {
-    return this.postsService.findFeed({ categoryId, type, status, trending: trending === 'true', cursor, authorId });
+    return this.postsService.findFeed({ categoryId, type, status, trending: trending === 'true', cursor, authorId, requestUserId: user?.userId });
   }
 
   @Get('my-posts')
@@ -33,8 +36,9 @@ export class PostsController {
   }
 
   @Get('search')
-  search(@Query('q') q: string, @Query('categoryId') categoryId?: string) {
-    return this.postsService.search(q, categoryId);
+  @UseGuards(OptionalJwtAuthGuard)
+  search(@CurrentUser() user: { userId?: string }, @Query('q') q: string, @Query('categoryId') categoryId?: string) {
+    return this.postsService.search(q, categoryId, user?.userId);
   }
 
   @Post('analyze-preview')
@@ -45,13 +49,14 @@ export class PostsController {
 
   @Get('favorites')
   @UseGuards(JwtAuthGuard)
-  findFavorites(@CurrentUser() user: { userId: string }) {
-    return this.postsService.findFavorites(user.userId);
+  findFavorites(@CurrentUser() user: { userId: string }, @Query('cursor') cursor?: string) {
+    return this.postsService.findFavorites(user.userId, cursor);
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.postsService.findOne(id);
+  @UseGuards(OptionalJwtAuthGuard)
+  findOne(@CurrentUser() user: { userId?: string }, @Param('id') id: string) {
+    return this.postsService.findOne(id, user?.userId);
   }
 
   @Patch(':id/solve')

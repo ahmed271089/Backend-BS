@@ -144,6 +144,15 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       });
   }
 
+  @UseGuards(WsJwtGuard)
+  @SubscribeMessage("check_user_status")
+  checkUserStatus(
+    @ConnectedSocket() client: AuthedSocket,
+    @MessageBody() dto: { userId: string },
+  ) {
+    return { isOnline: this.isUserOnline(dto.userId) };
+  }
+
   isUserOnline(userId: string): boolean {
     return (this.onlineUsers.get(userId)?.size ?? 0) > 0;
   }
@@ -155,13 +164,19 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   private addOnlineSocket(userId: string, socketId: string) {
+    const wasOnline = this.isUserOnline(userId);
     if (!this.onlineUsers.has(userId)) this.onlineUsers.set(userId, new Set());
     this.onlineUsers.get(userId)!.add(socketId);
+    if (!wasOnline) {
+      this.server.emit("user_status_changed", { userId, isOnline: true });
+    }
   }
 
   private removeOnlineSocket(userId: string, socketId: string) {
     this.onlineUsers.get(userId)?.delete(socketId);
-    if (this.onlineUsers.get(userId)?.size === 0)
+    if (this.onlineUsers.get(userId)?.size === 0) {
       this.onlineUsers.delete(userId);
+      this.server.emit("user_status_changed", { userId, isOnline: false });
+    }
   }
 }

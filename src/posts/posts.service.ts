@@ -104,9 +104,10 @@ export class PostsService {
     take?: number;
     cursor?: string;
     authorId?: string;
+    requestUserId?: string;
   }) {
-    const { categoryId, type, status, trending, take = 20, cursor, authorId } = params;
-    return this.prisma.post.findMany({
+    const { categoryId, type, status, trending, take = 20, cursor, authorId, requestUserId } = params;
+    const posts = await this.prisma.post.findMany({
       where: {
         isHidden: false,
         ...(categoryId ? { categoryId } : {}),
@@ -134,12 +135,22 @@ export class PostsService {
           include: { author: { select: { id: true, name: true, avatarUrl: true } } }
         },
         _count: { select: { comments: true, likes: true } },
+        favorites: requestUserId ? { where: { userId: requestUserId } } : false,
+        likes: requestUserId ? { where: { userId: requestUserId } } : false,
       },
+    });
+
+    return posts.map(p => {
+      const isSaved = p.favorites ? p.favorites.length > 0 : false;
+      const isLiked = p.likes ? p.likes.length > 0 : false;
+      delete (p as any).favorites;
+      delete (p as any).likes;
+      return { ...p, isSaved, isLiked };
     });
   }
 
   async findMyPosts(userId: string, cursor?: string) {
-    return this.prisma.post.findMany({
+    const posts = await this.prisma.post.findMany({
       where: { authorId: userId },
       orderBy: { createdAt: 'desc' },
       take: 20,
@@ -155,11 +166,21 @@ export class PostsService {
           include: { author: { select: { id: true, name: true, avatarUrl: true } } }
         },
         _count: { select: { comments: true, likes: true } },
+        favorites: { where: { userId } },
+        likes: { where: { userId } },
       },
+    });
+
+    return posts.map(p => {
+      const isSaved = p.favorites ? p.favorites.length > 0 : false;
+      const isLiked = p.likes ? p.likes.length > 0 : false;
+      delete (p as any).favorites;
+      delete (p as any).likes;
+      return { ...p, isSaved, isLiked };
     });
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, requestUserId?: string) {
     const post = await this.prisma.post.findUnique({
       where: { id },
       include: {
@@ -172,6 +193,8 @@ export class PostsService {
           orderBy: { createdAt: 'asc' },
           include: { author: { select: { id: true, name: true, avatarUrl: true } } },
         },
+        favorites: requestUserId ? { where: { userId: requestUserId } } : false,
+        likes: requestUserId ? { where: { userId: requestUserId } } : false,
       },
     });
     if (!post || post.isHidden) throw new NotFoundException('Post not found');
@@ -179,7 +202,12 @@ export class PostsService {
     await this.prisma.post.update({ where: { id }, data: { viewsCount: { increment: 1 } } });
     await this.checkTrending(id);
 
-    return post;
+    const isSaved = post.favorites ? post.favorites.length > 0 : false;
+    const isLiked = post.likes ? post.likes.length > 0 : false;
+    delete (post as any).favorites;
+    delete (post as any).likes;
+    
+    return { ...post, isSaved, isLiked };
   }
 
   async markSolved(postId: string, requesterId: string, solvedCommentId: string) {
@@ -274,9 +302,11 @@ export class PostsService {
     return { favorited: true };
   }
 
-  async findFavorites(userId: string) {
+  async findFavorites(userId: string, cursor?: string) {
     const favorites = await this.prisma.favorite.findMany({
       where: { userId, post: { isHidden: false } },
+      take: 20,
+      ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
       include: {
         post: {
           include: {
@@ -291,16 +321,25 @@ export class PostsService {
               include: { author: { select: { id: true, name: true, avatarUrl: true } } }
             },
             _count: { select: { comments: true, likes: true } },
+            favorites: { where: { userId } },
+            likes: { where: { userId } },
           }
         }
       },
       orderBy: { createdAt: 'desc' }
     });
-    return favorites.map(f => f.post);
+    return favorites.map(f => {
+      const p = f.post;
+      const isSaved = p.favorites ? p.favorites.length > 0 : false;
+      const isLiked = p.likes ? p.likes.length > 0 : false;
+      delete (p as any).favorites;
+      delete (p as any).likes;
+      return { ...p, isSaved, isLiked };
+    });
   }
 
-  async search(query: string, categoryId?: string) {
-    return this.prisma.post.findMany({
+  async search(query: string, categoryId?: string, requestUserId?: string) {
+    const posts = await this.prisma.post.findMany({
       where: {
         isHidden: false,
         ...(categoryId ? { categoryId } : {}),
@@ -309,8 +348,21 @@ export class PostsService {
           { description: { contains: query, mode: 'insensitive' } },
         ],
       },
-      include: { category: true, attachments: true },
+      include: { 
+        category: true, 
+        attachments: true,
+        favorites: requestUserId ? { where: { userId: requestUserId } } : false,
+        likes: requestUserId ? { where: { userId: requestUserId } } : false,
+      },
       take: 30,
+    });
+
+    return posts.map(p => {
+      const isSaved = p.favorites ? p.favorites.length > 0 : false;
+      const isLiked = p.likes ? p.likes.length > 0 : false;
+      delete (p as any).favorites;
+      delete (p as any).likes;
+      return { ...p, isSaved, isLiked };
     });
   }
 

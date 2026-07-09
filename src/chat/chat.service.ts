@@ -48,6 +48,33 @@ export class ChatService {
     });
   }
 
+  async createGroupConversation(userId: string, participantIds: string[]) {
+    // Ensure uniqueness and that the creator is included
+    const allParticipantIds = Array.from(new Set([userId, ...participantIds]));
+
+    if (allParticipantIds.length < 2) {
+      throw new BadRequestException(
+        "A group conversation must have at least 2 participants including yourself",
+      );
+    }
+
+    return this.prisma.conversation.create({
+      data: {
+        isGroup: true,
+        participants: {
+          create: allParticipantIds.map((id) => ({ userId: id })),
+        },
+      },
+      include: {
+        participants: {
+          include: {
+            user: { select: { id: true, name: true, avatarUrl: true } },
+          },
+        },
+      },
+    });
+  }
+
   async listConversations(userId: string) {
     const conversations = await this.prisma.conversation.findMany({
       where: { participants: { some: { userId } } },
