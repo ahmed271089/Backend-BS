@@ -17,7 +17,7 @@ export class PostsService {
     private usersService: UsersService,
     private agentClient: AgentClientService,
     private notificationsService: NotificationsService,
-  ) {}
+  ) { }
 
   async create(authorId: string, dto: CreatePostDto) {
     const attachments = dto.attachments ?? [];
@@ -117,9 +117,9 @@ export class PostsService {
       },
       orderBy: trending
         ? [
-            { isTrending: 'desc' as const },
-            { createdAt: 'desc' as const },
-          ]
+          { isTrending: 'desc' as const },
+          { createdAt: 'desc' as const },
+        ]
         : { createdAt: 'desc' as const },
       take,
       ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
@@ -191,7 +191,10 @@ export class PostsService {
         comments: {
           where: { isHidden: false },
           orderBy: { createdAt: 'asc' },
-          include: { author: { select: { id: true, name: true, avatarUrl: true } } },
+          include: { 
+            author: { select: { id: true, name: true, avatarUrl: true } },
+            likes: requestUserId ? { where: { userId: requestUserId } } : false,
+          },
         },
         favorites: requestUserId ? { where: { userId: requestUserId } } : false,
         likes: requestUserId ? { where: { userId: requestUserId } } : false,
@@ -204,10 +207,17 @@ export class PostsService {
 
     const isSaved = post.favorites ? post.favorites.length > 0 : false;
     const isLiked = post.likes ? post.likes.length > 0 : false;
+    
+    const mappedComments = post.comments.map(c => {
+      const userVote = c.likes && c.likes.length > 0 ? c.likes[0].value : 0;
+      delete (c as any).likes;
+      return { ...c, userVote };
+    });
+
     delete (post as any).favorites;
     delete (post as any).likes;
-    
-    return { ...post, isSaved, isLiked };
+
+    return { ...post, isSaved, isLiked, comments: mappedComments };
   }
 
   async markSolved(postId: string, requesterId: string, solvedCommentId: string) {
@@ -228,11 +238,11 @@ export class PostsService {
     });
 
     if (comment.authorId !== requesterId) {
-      await this.notificationsService.create(comment.authorId, 'SOLVED', {
+      this.notificationsService.create(comment.authorId, 'SOLVED', {
         postId,
         postTitle: post.title,
         commentId: solvedCommentId,
-      });
+      }).catch(err => this.logger.error('Failed to enqueue notification', err));
       await this.usersService.addReputation(comment.authorId, post.categoryId, REPUTATION_RULES.MARK_SOLVED, 'MARK_SOLVED', comment.id, 'COMMENT');
     }
 
@@ -271,19 +281,19 @@ export class PostsService {
     if (existing) {
       await this.prisma.like.delete({ where: { id: existing.id } });
       await this.prisma.post.update({ where: { id: postId }, data: { likesCount: { decrement: 1 } } });
-      
+
       // Revoke points
       await this.usersService.addReputation(post.authorId, post.categoryId, -REPUTATION_RULES.RECEIVE_LIKE, 'REVOKE_LIKE', post.id, 'POST');
-      
+
       return { liked: false };
     }
 
     await this.prisma.like.create({ data: { userId, postId } });
     await this.prisma.post.update({ where: { id: postId }, data: { likesCount: { increment: 1 } } });
-    
+
     // Award points
     await this.usersService.addReputation(post.authorId, post.categoryId, REPUTATION_RULES.RECEIVE_LIKE, 'RECEIVE_LIKE', post.id, 'POST');
-    
+
     await this.checkTrending(postId);
     return { liked: true };
   }
@@ -340,17 +350,18 @@ export class PostsService {
 
   async search(query: string, categoryId?: string, requestUserId?: string, cursor?: string) {
     const formattedQuery = query.replace(/[^a-zA-Z0-9 ]/g, '').trim().split(/\s+/).filter(Boolean).join(' | ');
-    const searchCondition = formattedQuery ? {
-      OR: [
-        { title: { search: formattedQuery } },
-        { description: { search: formattedQuery } },
-      ]
-    } : {
+    console.log("formattedQuery", formattedQuery)
+    console.log("categoryId", categoryId)
+    console.log("requestUserId", requestUserId)
+    console.log("cursor", cursor)
+    const searchCondition = {
       OR: [
         { title: { contains: query, mode: 'insensitive' as const } },
         { description: { contains: query, mode: 'insensitive' as const } },
       ]
     };
+
+    console.log("searchCondition", searchCondition.OR[0].title)
 
     const orderBy: any = formattedQuery ? {
       _relevance: {
@@ -369,9 +380,18 @@ export class PostsService {
       orderBy,
       take: 20,
       ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
-      include: { 
-        category: true, 
+      include: {
+        author: { select: { id: true, name: true, avatarUrl: true, reputationPoints: true } },
+        category: true,
         attachments: true,
+        aiAnalysis: true,
+        comments: {
+          where: { isHidden: false },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          include: { author: { select: { id: true, name: true, avatarUrl: true } } }
+        },
+        _count: { select: { comments: true, likes: true } },
         favorites: requestUserId ? { where: { userId: requestUserId } } : false,
         likes: requestUserId ? { where: { userId: requestUserId } } : false,
       },

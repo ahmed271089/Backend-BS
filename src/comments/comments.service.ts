@@ -24,24 +24,24 @@ export class CommentsService {
     await this.prisma.post.update({ where: { id: postId }, data: { commentsCount: { increment: 1 } } });
 
     if (post.authorId !== authorId) {
-      await this.notificationsService.create(post.authorId, 'COMMENT', {
+      this.notificationsService.create(post.authorId, 'COMMENT', {
         postId,
         postTitle: post.title,
         commentId: comment.id,
         authorId,
-      });
+      }).catch(err => console.error('Notification error', err));
     }
 
     if (parentId) {
       const parent = await this.prisma.comment.findUnique({ where: { id: parentId } });
       if (parent && parent.authorId !== authorId && parent.authorId !== post.authorId) {
-        await this.notificationsService.create(parent.authorId, 'COMMENT', {
+        this.notificationsService.create(parent.authorId, 'COMMENT', {
           postId,
           postTitle: post.title,
           commentId: comment.id,
           authorId,
           isReply: true,
-        });
+        }).catch(err => console.error('Notification error', err));
       }
     }
 
@@ -63,13 +63,13 @@ export class CommentsService {
     });
 
     return comments.map(c => {
-      const isLiked = c.likes ? c.likes.length > 0 : false;
+      const userVote = c.likes && c.likes.length > 0 ? c.likes[0].value : 0;
       delete (c as any).likes;
-      return { ...c, isLiked };
+      return { ...c, userVote };
     });
   }
 
-  async toggleLike(userId: string, commentId: string) {
+  async vote(userId: string, commentId: string, value: number) {
     const comment = await this.prisma.comment.findUnique({
       where: { id: commentId },
       include: { post: true },
@@ -81,22 +81,46 @@ export class CommentsService {
     });
 
     if (existing) {
-      await this.prisma.like.delete({ where: { id: existing.id } });
-      await this.prisma.comment.update({ where: { id: commentId }, data: { likesCount: { decrement: 1 } } });
-      
-      // Revoke points
-      await this.usersService.addReputation(comment.authorId, comment.post.categoryId, -REPUTATION_RULES.RECEIVE_LIKE, 'REVOKE_LIKE', comment.id, 'COMMENT');
+      if (existing.value === value) {
+        // Remove vote
+        await this.prisma.like.delete({ where: { id: existing.id } });
+        await this.prisma.comment.update({
+          where: { id: commentId },
+          data: { likesCount: { decrement: value } }
+        });
+        
+        const repRule = value === 1 ? REPUTATION_RULES.RECEIVE_LIKE : -REPUTATION_RULES.RECEIVE_LIKE; // assuming downvote deducts same amount
+        await this.usersService.addReputation(comment.authorId, comment.post.categoryId, -repRule, 'REVOKE_VOTE', comment.id, 'COMMENT');
 
-      return { liked: false };
+        return { userVote: 0 };
+      } else {
+        // Change vote
+        await this.prisma.like.update({
+          where: { id: existing.id },
+          data: { value }
+        });
+        const difference = value - existing.value; // e.g., 1 - (-1) = 2, or -1 - 1 = -2
+        await this.prisma.comment.update({
+          where: { id: commentId },
+          data: { likesCount: { increment: difference } }
+        });
+        
+        const repRuleOld = existing.value === 1 ? REPUTATION_RULES.RECEIVE_LIKE : -REPUTATION_RULES.RECEIVE_LIKE;
+        const repRuleNew = value === 1 ? REPUTATION_RULES.RECEIVE_LIKE : -REPUTATION_RULES.RECEIVE_LIKE;
+        await this.usersService.addReputation(comment.authorId, comment.post.categoryId, repRuleNew - repRuleOld, 'CHANGE_VOTE', comment.id, 'COMMENT');
+
+        return { userVote: value };
+      }
     }
 
-    await this.prisma.like.create({ data: { userId, commentId } });
-    await this.prisma.comment.update({ where: { id: commentId }, data: { likesCount: { increment: 1 } } });
+    // New vote
+    await this.prisma.like.create({ data: { userId, commentId, value } });
+    await this.prisma.comment.update({ where: { id: commentId }, data: { likesCount: { increment: value } } });
     
-    // Award points
-    await this.usersService.addReputation(comment.authorId, comment.post.categoryId, REPUTATION_RULES.RECEIVE_LIKE, 'RECEIVE_LIKE', comment.id, 'COMMENT');
+    const repRule = value === 1 ? REPUTATION_RULES.RECEIVE_LIKE : -REPUTATION_RULES.RECEIVE_LIKE;
+    await this.usersService.addReputation(comment.authorId, comment.post.categoryId, repRule, 'RECEIVE_VOTE', comment.id, 'COMMENT');
 
-    return { liked: true };
+    return { userVote: value };
   }
 
   async delete(commentId: string, requesterId: string, requesterRole: string) {

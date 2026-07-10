@@ -65,13 +65,15 @@ export class UsersService {
     };
   }
 
-  async search(query: string, take = 20) {
+  async search(query: string, currentUserId: string, take = 20) {
     const trimmed = query.trim();
     if (!trimmed) return [];
 
     const users = await this.prisma.user.findMany({
       where: {
         status: 'ACTIVE',
+        id: { not: currentUserId },
+        role: { not: 'ADMIN' },
         OR: [
           { name: { contains: trimmed, mode: 'insensitive' } },
           { email: { contains: trimmed, mode: 'insensitive' } },

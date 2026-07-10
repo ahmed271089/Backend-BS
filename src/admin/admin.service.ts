@@ -157,4 +157,93 @@ export class AdminService {
     });
     return this.prisma.comment.delete({ where: { id } });
   }
+
+  // --- USER MANAGEMENT ---
+
+  async getUsers(page: number, limit: number, search?: string) {
+    const skip = (page - 1) * limit;
+    const where = search ? {
+      OR: [
+        { name: { contains: search, mode: 'insensitive' as any } },
+        { email: { contains: search, mode: 'insensitive' as any } },
+      ]
+    } : {};
+
+    const [users, total] = await Promise.all([
+      this.prisma.user.findMany({
+        where,
+        skip,
+        take: limit,
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          status: true,
+          reputationPoints: true,
+          isVerified: true,
+        },
+        orderBy: { reputationPoints: 'desc' },
+      }),
+      this.prisma.user.count({ where }),
+    ]);
+
+    return {
+      users,
+      total,
+      page,
+      pageCount: Math.ceil(total / limit),
+    };
+  }
+
+  async updateUserRole(id: string, role: 'USER' | 'ADMIN', adminId: string) {
+    const actorName = await this.getAdminName(adminId);
+    await this.prisma.moderationAudit.create({
+      data: { actorId: adminId, actorName, action: `ROLE_${role}`, targetType: 'USER', targetId: id }
+    });
+    return this.prisma.user.update({
+      where: { id },
+      data: { role },
+      select: { id: true, name: true, role: true },
+    });
+  }
+
+  async updateUserStatus(id: string, status: 'ACTIVE' | 'SUSPENDED' | 'BANNED', adminId: string) {
+    const actorName = await this.getAdminName(adminId);
+    await this.prisma.moderationAudit.create({
+      data: { actorId: adminId, actorName, action: `STATUS_${status}`, targetType: 'USER', targetId: id }
+    });
+    return this.prisma.user.update({
+      where: { id },
+      data: { status },
+      select: { id: true, name: true, status: true },
+    });
+  }
+
+  async deleteUser(id: string, adminId: string) {
+    const actorName = await this.getAdminName(adminId);
+    await this.prisma.moderationAudit.create({
+      data: { actorId: adminId, actorName, action: 'DELETE', targetType: 'USER', targetId: id }
+    });
+    return this.prisma.user.delete({ where: { id } });
+  }
+
+  // --- CATEGORY MANAGEMENT ---
+
+  async createCategory(name: string, slug: string, icon: string | null) {
+    return this.prisma.category.create({
+      data: { name, slug, icon }
+    });
+  }
+
+  async updateCategory(id: string, name?: string, slug?: string, icon?: string | null) {
+    return this.prisma.category.update({
+      where: { id },
+      data: { name, slug, icon }
+    });
+  }
+
+  async deleteCategory(id: string) {
+    return this.prisma.category.delete({ where: { id } });
+  }
 }
