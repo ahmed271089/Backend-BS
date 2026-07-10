@@ -28,8 +28,9 @@ export class UsersController {
   }
 
   @Get('search')
-  search(@Query('q') q: string) {
-    return this.usersService.search(q ?? '');
+  @UseGuards(JwtAuthGuard)
+  search(@CurrentUser() user: { userId: string }, @Query('q') q: string) {
+    return this.usersService.search(q ?? '', user.userId);
   }
 
   @Get(':id')

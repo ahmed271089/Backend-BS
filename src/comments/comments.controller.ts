@@ -25,10 +25,14 @@ export class CommentsController {
     return this.commentsService.create(postId, user.userId, dto.content, dto.parentId);
   }
 
-  @Post(':commentId/like')
+  @Post(':commentId/vote')
   @UseGuards(JwtAuthGuard)
-  toggleLike(@CurrentUser() user: { userId: string }, @Param('commentId') commentId: string) {
-    return this.commentsService.toggleLike(user.userId, commentId);
+  vote(
+    @CurrentUser() user: { userId: string }, 
+    @Param('commentId') commentId: string,
+    @Body('value') value: number
+  ) {
+    return this.commentsService.vote(user.userId, commentId, value);
   }
 
   @Patch(':commentId')

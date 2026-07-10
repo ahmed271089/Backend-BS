@@ -8,6 +8,7 @@
         "start:prod": "node dist/main"
     },
     "dependencies": {
+        "@aws-sdk/client-s3": "^3.1083.0",
         "@nestjs/common": "^10.4.22",
         "@nestjs/config": "^4.0.4",
         "@nestjs/core": "^10.4.22",
@@ -20,6 +21,7 @@
         "bcrypt": "^6.0.0",
         "class-transformer": "^0.5.1",
         "class-validator": "^0.15.1",
+        "multer-s3": "^3.0.1",
         "nodemailer": "^9.0.1",
         "passport": "^0.7.0",
         "passport-jwt": "^4.0.1",
@@ -32,6 +34,7 @@
         "@types/bcrypt": "^6.0.0",
         "@types/express": "^5.0.6",
         "@types/multer": "^2.1.0",
+        "@types/multer-s3": "^3.0.3",
         "@types/node": "^26.0.1",
         "@types/nodemailer": "^8.0.1",
         "typescript": "^5.4.5"

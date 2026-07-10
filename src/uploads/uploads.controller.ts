@@ -10,6 +10,8 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
 import { randomUUID } from 'crypto';
+import { S3Client } from '@aws-sdk/client-s3';
+import multerS3 from 'multer-s3';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 
 const ALLOWED_MIME_TYPES = [
@@ -22,24 +24,44 @@ const ALLOWED_MIME_TYPES = [
 ];
 const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50MB
 
-/**
- * Local-disk storage for development. Swap this controller's logic for an S3/GCS
- * signed-upload flow when you go to production — the response shape ({ url })
- * is designed to stay the same either way, so nothing on the client needs to change.
- */
+const s3Client = new S3Client({
+  region: process.env.AWS_REGION || 'us-east-1',
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
+  },
+});
+
+const getStorage = () => {
+  if (process.env.AWS_S3_BUCKET && process.env.AWS_ACCESS_KEY_ID) {
+    return multerS3({
+      s3: s3Client,
+      bucket: process.env.AWS_S3_BUCKET,
+      contentType: multerS3.AUTO_CONTENT_TYPE,
+      key: (_req, file, cb) => {
+        const unique = randomUUID();
+        cb(null, `${unique}${extname(file.originalname)}`);
+      },
+    });
+  }
+
+  // Fallback to local disk storage
+  return diskStorage({
+    destination: './uploads',
+    filename: (_req, file, callback) => {
+      const unique = randomUUID();
+      callback(null, `${unique}${extname(file.originalname)}`);
+    },
+  });
+};
+
 @Controller('uploads')
 @UseGuards(JwtAuthGuard)
 export class UploadsController {
   @Post()
   @UseInterceptors(
     FileInterceptor('file', {
-      storage: diskStorage({
-        destination: './uploads',
-        filename: (_req, file, callback) => {
-          const unique = randomUUID();
-          callback(null, `${unique}${extname(file.originalname)}`);
-        },
-      }),
+      storage: getStorage(),
       limits: { fileSize: MAX_FILE_SIZE_BYTES },
       fileFilter: (_req, file, callback) => {
         if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
@@ -52,11 +74,20 @@ export class UploadsController {
   upload(@UploadedFile() file: Express.Multer.File) {
     if (!file) throw new BadRequestException('No file uploaded');
 
-    const baseUrl = process.env.PUBLIC_BASE_URL ?? `http://localhost:${process.env.PORT ?? 3000}`;
     const type = file.mimetype.startsWith('video/') ? 'VIDEO' : 'PHOTO';
 
+    let url = '';
+    if ((file as any).location) {
+      // Returned by multer-s3
+      url = (file as any).location;
+    } else {
+      // Local fallback
+      const baseUrl = process.env.PUBLIC_BASE_URL ?? `http://localhost:${process.env.PORT ?? 3000}`;
+      url = `${baseUrl}/uploads/${file.filename}`;
+    }
+
     return {
-      url: `${baseUrl}/uploads/${file.filename}`,
+      url,
       type,
       sizeBytes: file.size,
     };
