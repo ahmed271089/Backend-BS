@@ -22,7 +22,7 @@ import {
 @Controller()
 @UseGuards(JwtAuthGuard)
 export class ChatController {
-  constructor(private chatService: ChatService) {}
+  constructor(private chatService: ChatService) { }
 
   @Get("conversations")
   listConversations(@CurrentUser() user: { userId: string }) {
@@ -119,5 +119,13 @@ export class ChatController {
     @Param("friendId") friendId: string,
   ) {
     return this.chatService.removeFriend(user.userId, friendId);
+  }
+
+  @Delete("conversations/:id")
+  deleteConversation(
+    @CurrentUser() user: { userId: string },
+    @Param("id") id: string,
+  ) {
+    return this.chatService.deleteConversation(id, user.userId);
   }
 }

@@ -1,5 +1,5 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
   previewFeatures = ["fullTextSearch"]
 }
 
@@ -8,7 +8,275 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ----------------------- ENUMS -----------------------
+model User {
+  id                     String                    @id @default(uuid())
+  email                  String?                   @unique
+  phone                  String?                   @unique
+  passwordHash           String?
+  name                   String
+  avatarUrl              String?
+  bio                    String?
+  provider               AuthProvider              @default(EMAIL)
+  providerId             String?
+  role                   Role                      @default(USER)
+  status                 UserStatus                @default(ACTIVE)
+  reputationPoints       Int                       @default(0)
+  isVerified             Boolean                   @default(false)
+  createdAt              DateTime                  @default(now())
+  updatedAt              DateTime                  @updatedAt
+  expertise              CategoryExpertise[]
+  comments               Comment[]
+  conversations          ConversationParticipant[]
+  favorites              Favorite[]
+  receivedFriendRequests FriendRequest[]           @relation("FriendRequestReceiver")
+  sentFriendRequests     FriendRequest[]           @relation("FriendRequestSender")
+  likes                  Like[]
+  messages               Message[]
+  notifications          Notification[]
+  posts                  Post[]
+  reports                Report[]                  @relation("ReportSender")
+  reputationHistory      ReputationHistory[]
+  sentRewards            Reward[]                  @relation("RewardSender")
+  receivedRewards        Reward[]                  @relation("RewardReceiver")
+
+  @@index([email])
+  @@index([phone])
+}
+
+model Category {
+  id                String              @id @default(uuid())
+  name              String              @unique
+  slug              String              @unique
+  icon              String?
+  createdAt         DateTime            @default(now())
+  expertise         CategoryExpertise[]
+  posts             Post[]
+  reputationHistory ReputationHistory[]
+}
+
+model CategoryExpertise {
+  id         String   @id @default(uuid())
+  userId     String
+  categoryId String
+  points     Int      @default(0)
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, categoryId])
+}
+
+model Post {
+  id              String       @id @default(uuid())
+  authorId        String
+  type            PostType
+  categoryId      String
+  title           String
+  description     String
+  status          PostStatus   @default(OPEN)
+  solvedCommentId String?      @unique
+  viewsCount      Int          @default(0)
+  likesCount      Int          @default(0)
+  commentsCount   Int          @default(0)
+  isTrending      Boolean      @default(false)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  isHidden        Boolean      @default(false)
+  aiAnalysis      AIAnalysis?
+  attachments     Attachment[]
+  comments        Comment[]
+  favorites       Favorite[]
+  likes           Like[]
+  author          User         @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  category        Category     @relation(fields: [categoryId], references: [id])
+  rewards         Reward[]
+
+  @@index([categoryId])
+  @@index([status])
+  @@index([isTrending])
+}
+
+model Attachment {
+  id           String         @id @default(uuid())
+  postId       String
+  type         AttachmentType
+  url          String
+  thumbnailUrl String?
+  createdAt    DateTime       @default(now())
+  post         Post           @relation(fields: [postId], references: [id], onDelete: Cascade)
+}
+
+model AIAnalysis {
+  id                 String   @id @default(uuid())
+  postId             String   @unique
+  diagnosis          String
+  suggestedSolutions Json
+  confidenceScore    Float?
+  rawResponse        Json?
+  createdAt          DateTime @default(now())
+  post               Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+}
+
+model Comment {
+  id          String    @id @default(uuid())
+  postId      String
+  authorId    String
+  parentId    String?
+  content     String
+  isAIComment Boolean   @default(false)
+  likesCount  Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  isHidden    Boolean   @default(false)
+  author      User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parent      Comment?  @relation("CommentReplies", fields: [parentId], references: [id])
+  replies     Comment[] @relation("CommentReplies")
+  post        Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  likes       Like[]
+
+  @@index([postId])
+}
+
+model Like {
+  id        String   @id @default(uuid())
+  userId    String
+  postId    String?
+  commentId String?
+  createdAt DateTime @default(now())
+  value     Int      @default(1)
+  comment   Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  post      Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+  @@unique([userId, commentId])
+}
+
+model Favorite {
+  id        String   @id @default(uuid())
+  userId    String
+  postId    String
+  createdAt DateTime @default(now())
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+}
+
+model Reward {
+  id         String   @id @default(uuid())
+  fromUserId String
+  toUserId   String
+  postId     String
+  points     Int
+  createdAt  DateTime @default(now())
+  fromUser   User     @relation("RewardSender", fields: [fromUserId], references: [id], onDelete: Cascade)
+  post       Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  toUser     User     @relation("RewardReceiver", fields: [toUserId], references: [id], onDelete: Cascade)
+}
+
+model Conversation {
+  id           String                    @id @default(uuid())
+  isGroup      Boolean                   @default(false)
+  createdAt    DateTime                  @default(now())
+  participants ConversationParticipant[]
+  messages     Message[]
+}
+
+model ConversationParticipant {
+  id             String       @id @default(uuid())
+  conversationId String
+  userId         String
+  joinedAt       DateTime     @default(now())
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+}
+
+model Message {
+  id             String       @id @default(uuid())
+  conversationId String
+  senderId       String
+  content        String?
+  attachmentUrl  String?
+  readAt         DateTime?
+  createdAt      DateTime     @default(now())
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender         User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+}
+
+model ModerationAudit {
+  id         String     @id @default(uuid())
+  actorId    String?
+  actorName  String
+  action     String
+  targetType TargetType
+  targetId   String
+  reason     String?
+  createdAt  DateTime   @default(now())
+
+  @@index([targetId])
+  @@index([targetType])
+}
+
+model FriendRequest {
+  id         String              @id @default(uuid())
+  senderId   String
+  receiverId String
+  status     FriendRequestStatus @default(PENDING)
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+  receiver   User                @relation("FriendRequestReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  sender     User                @relation("FriendRequestSender", fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@unique([senderId, receiverId])
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  type      NotificationType
+  payload   Json
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+}
+
+model Report {
+  id         String       @id @default(uuid())
+  reporterId String
+  targetType TargetType
+  targetId   String
+  reason     String
+  status     ReportStatus @default(PENDING)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  details    String?
+  reporter   User         @relation("ReportSender", fields: [reporterId], references: [id], onDelete: Cascade)
+
+  @@index([targetType, targetId])
+  @@index([status])
+}
+
+model ReputationHistory {
+  id         String      @id @default(uuid())
+  userId     String
+  categoryId String?
+  action     String
+  points     Int
+  targetId   String?
+  targetType TargetType?
+  createdAt  DateTime    @default(now())
+  category   Category?   @relation(fields: [categoryId], references: [id])
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([action])
+}
 
 enum Role {
   USER
@@ -73,337 +341,4 @@ enum NotificationType {
   FRIEND_REQUEST
   REPORT_UPDATE
   SYSTEM
-}
-
-// ----------------------- USER -----------------------
-
-model User {
-  id              String       @id @default(uuid())
-  email           String?      @unique
-  phone           String?      @unique
-  passwordHash    String?
-  name            String
-  avatarUrl       String?
-  bio             String?
-  provider        AuthProvider @default(EMAIL)
-  providerId      String?
-  role            Role         @default(USER)
-  status          UserStatus   @default(ACTIVE)
-  reputationPoints Int         @default(0)
-  isVerified      Boolean      @default(false)
-
-  posts            Post[]
-  comments         Comment[]
-  likes            Like[]
-  favorites        Favorite[]
-  expertise        CategoryExpertise[]
-
-  sentRewards      Reward[]     @relation("RewardSender")
-  receivedRewards  Reward[]     @relation("RewardReceiver")
-
-  reports          Report[]     @relation("ReportSender")
-
-  sentFriendRequests     FriendRequest[] @relation("FriendRequestSender")
-  receivedFriendRequests FriendRequest[] @relation("FriendRequestReceiver")
-
-  conversations    ConversationParticipant[]
-  messages         Message[]
-
-  notifications    Notification[]
-  reputationHistory ReputationHistory[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([email])
-  @@index([phone])
-}
-
-// ----------------------- CATEGORY -----------------------
-
-model Category {
-  id    String @id @default(uuid())
-  name  String @unique
-  slug  String @unique
-  icon  String?
-
-  posts      Post[]
-  expertise  CategoryExpertise[]
-  reputationHistory ReputationHistory[]
-
-  createdAt DateTime @default(now())
-}
-
-model CategoryExpertise {
-  id         String   @id @default(uuid())
-  userId     String
-  categoryId String
-  points     Int      @default(0)
-
-  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, categoryId])
-}
-
-// ----------------------- POST -----------------------
-
-model Post {
-  id          String     @id @default(uuid())
-  authorId    String
-  type        PostType
-  categoryId  String
-  title       String
-  description String
-  status      PostStatus @default(OPEN)
-
-  solvedCommentId String?  @unique
-
-  viewsCount    Int     @default(0)
-  likesCount    Int     @default(0)
-  commentsCount Int     @default(0)
-  isTrending    Boolean @default(false)
-  isHidden      Boolean @default(false)
-
-  author      User        @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  category    Category    @relation(fields: [categoryId], references: [id])
-  attachments Attachment[]
-  aiAnalysis  AIAnalysis?
-  comments    Comment[]
-  likes       Like[]
-  favorites   Favorite[]
-  rewards     Reward[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([categoryId])
-  @@index([status])
-  @@index([isTrending])
-}
-
-model Attachment {
-  id           String         @id @default(uuid())
-  postId       String
-  type         AttachmentType
-  url          String
-  thumbnailUrl String?
-
-  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-}
-
-model AIAnalysis {
-  id                String   @id @default(uuid())
-  postId            String   @unique
-  diagnosis         String
-  suggestedSolutions Json
-  confidenceScore   Float?
-  rawResponse       Json?
-
-  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-}
-
-// ----------------------- COMMENT -----------------------
-
-model Comment {
-  id         String   @id @default(uuid())
-  postId     String
-  authorId   String
-  parentId   String?
-  content    String
-  isAIComment Boolean @default(false)
-  isHidden   Boolean  @default(false)
-  likesCount Int      @default(0)
-
-  post    Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
-  author  User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  parent  Comment?  @relation("CommentReplies", fields: [parentId], references: [id])
-  replies Comment[] @relation("CommentReplies")
-  likes   Like[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([postId])
-}
-
-// ----------------------- LIKE / FAVORITE -----------------------
-
-model Like {
-  id        String   @id @default(uuid())
-  userId    String
-  postId    String?
-  commentId String?
-  value     Int      @default(1)
-
-  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  post    Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
-  comment Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-
-  @@unique([userId, postId])
-  @@unique([userId, commentId])
-}
-
-model Favorite {
-  id     String @id @default(uuid())
-  userId String
-  postId String
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-
-  @@unique([userId, postId])
-}
-
-// ----------------------- REWARD / RANKING -----------------------
-
-model Reward {
-  id           String @id @default(uuid())
-  fromUserId   String
-  toUserId     String
-  postId       String
-  points       Int
-
-  fromUser User @relation("RewardSender", fields: [fromUserId], references: [id], onDelete: Cascade)
-  toUser   User @relation("RewardReceiver", fields: [toUserId], references: [id], onDelete: Cascade)
-  post     Post @relation(fields: [postId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-}
-
-// ----------------------- CHAT -----------------------
-
-model Conversation {
-  id      String  @id @default(uuid())
-  isGroup Boolean @default(false)
-
-  participants ConversationParticipant[]
-  messages     Message[]
-
-  createdAt DateTime @default(now())
-}
-
-model ConversationParticipant {
-  id             String @id @default(uuid())
-  conversationId String
-  userId         String
-
-  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  joinedAt DateTime @default(now())
-
-  @@unique([conversationId, userId])
-}
-
-model Message {
-  id             String   @id @default(uuid())
-  conversationId String
-  senderId       String
-  content        String?
-  attachmentUrl  String?
-  readAt         DateTime?
-
-  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  sender       User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-
-  @@index([conversationId])
-}
-
-// ----------------------- MODERATION AUDIT -----------------------
-
-model ModerationAudit {
-  id          String     @id @default(uuid())
-  actorId     String?
-  actorName   String
-  action      String
-  targetType  TargetType 
-  targetId    String
-  reason      String?
-
-  createdAt   DateTime   @default(now())
-
-  @@index([targetId])
-  @@index([targetType])
-}
-
-model FriendRequest {
-  id         String               @id @default(uuid())
-  senderId   String
-  receiverId String
-  status     FriendRequestStatus  @default(PENDING)
-
-  sender   User @relation("FriendRequestSender", fields: [senderId], references: [id], onDelete: Cascade)
-  receiver User @relation("FriendRequestReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([senderId, receiverId])
-}
-
-// ----------------------- NOTIFICATIONS -----------------------
-
-model Notification {
-  id      String           @id @default(uuid())
-  userId  String
-  type    NotificationType
-  payload Json
-  isRead  Boolean          @default(false)
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-
-  @@index([userId, isRead])
-}
-
-// ----------------------- REPORTS -----------------------
-
-model Report {
-  id         String       @id @default(uuid())
-  reporterId String
-  targetType TargetType
-  targetId   String
-  reason     String
-  details    String?
-  status     ReportStatus @default(PENDING)
-
-  reporter User @relation("ReportSender", fields: [reporterId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([targetType, targetId])
-  @@index([status])
-}
-
-// ----------------------- REPUTATION HISTORY -----------------------
-
-model ReputationHistory {
-  id         String      @id @default(uuid())
-  userId     String
-  categoryId String?
-  action     String      // The action that caused the change (e.g., 'CREATE_POST', 'RECEIVE_LIKE')
-  points     Int         // Points added (positive) or revoked (negative)
-  targetId   String?     // ID of the related post or comment
-  targetType TargetType? // e.g., POST, COMMENT
-
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-
-  createdAt  DateTime  @default(now())
-
-  @@index([userId])
-  @@index([action])
 }

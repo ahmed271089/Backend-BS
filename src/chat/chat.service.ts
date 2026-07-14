@@ -23,6 +23,11 @@ export class ChatService {
       );
     }
 
+    const isFriend = await this.areFriends(userId, otherUserId);
+    if (!isFriend) {
+      throw new ForbiddenException("You must be friends to chat");
+    }
+
     // Look for an existing 1:1 (non-group) conversation between exactly these two users.
     const existing = await this.prisma.conversation.findFirst({
       where: {
@@ -56,6 +61,16 @@ export class ChatService {
       throw new BadRequestException(
         "A group conversation must have at least 2 participants including yourself",
       );
+    }
+
+    // Ensure creator is friends with everyone else
+    for (const pId of participantIds) {
+      if (pId !== userId) {
+        const isFriend = await this.areFriends(userId, pId);
+        if (!isFriend) {
+          throw new ForbiddenException("You can only add friends to a group chat");
+        }
+      }
     }
 
     return this.prisma.conversation.create({
@@ -99,6 +114,16 @@ export class ChatService {
     }));
   }
 
+  async deleteConversation(conversationId: string, userId: string) {
+    await this.assertParticipant(conversationId, userId);
+    
+    // We just delete the whole conversation for simplicity in this MVP
+    // A more advanced system would just remove the participant
+    return this.prisma.conversation.delete({
+      where: { id: conversationId },
+    });
+  }
+
   async assertParticipant(conversationId: string, userId: string) {
     const participant = await this.prisma.conversationParticipant.findUnique({
       where: { conversationId_userId: { conversationId, userId } },
@@ -139,6 +164,23 @@ export class ChatService {
       throw new BadRequestException(
         "Message must have content or an attachment",
       );
+    }
+
+    // In a real application, you might want to verify friendship still exists,
+    // especially for direct messages. We'll add a check for direct messages.
+    const conversation = await this.prisma.conversation.findUnique({
+      where: { id: conversationId },
+      include: { participants: true },
+    });
+    
+    if (conversation && !conversation.isGroup && conversation.participants.length === 2) {
+      const otherParticipant = conversation.participants.find(p => p.userId !== senderId);
+      if (otherParticipant) {
+        const isFriend = await this.areFriends(senderId, otherParticipant.userId);
+        if (!isFriend) {
+          throw new ForbiddenException("You must be friends to send messages in this conversation");
+        }
+      }
     }
 
     return this.prisma.message.create({
@@ -274,5 +316,18 @@ export class ChatService {
     });
 
     return { message: "Friend removed successfully" };
+  }
+
+  async areFriends(userId1: string, userId2: string) {
+    const friendRequest = await this.prisma.friendRequest.findFirst({
+      where: {
+        status: "ACCEPTED",
+        OR: [
+          { senderId: userId1, receiverId: userId2 },
+          { senderId: userId2, receiverId: userId1 },
+        ],
+      },
+    });
+    return !!friendRequest;
   }
 }
