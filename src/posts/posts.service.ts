@@ -251,9 +251,6 @@ export class PostsService {
 
   async deleteAll(requesterId: string) {
     const posts = await this.prisma.post.findMany({ where: { authorId: requesterId }, select: { id: true, categoryId: true } });
-    for (const p of posts) {
-      await this.usersService.addReputation(requesterId, p.categoryId, -REPUTATION_RULES.CREATE_POST, 'DELETE_POST', p.id, 'POST');
-    }
     await this.prisma.post.deleteMany({ where: { authorId: requesterId } });
     return { success: true };
   }
@@ -266,7 +263,6 @@ export class PostsService {
     }
 
     await this.prisma.post.delete({ where: { id: postId } });
-    await this.usersService.addReputation(post.authorId, post.categoryId, -REPUTATION_RULES.CREATE_POST, 'DELETE_POST', post.id, 'POST');
     return { success: true };
   }
 
